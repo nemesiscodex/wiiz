@@ -1,0 +1,68 @@
+version: 1
+name: repo-onboard contributor setup
+steps:
+  - id: pick-env
+    type: select
+    message: Pick runtime environment
+    var: ENV
+    envFile: .env
+    sensitive: false
+    options:
+      - label: Production
+        value: production
+      - label: Development
+        value: development
+
+  - id: input-name
+    type: input
+    message: Enter your name
+    var: NAME
+    sensitive: false
+    envFile: .env
+    required: true
+
+  - id: input-email
+    type: input
+    message: Enter your email
+    var: EMAIL
+    sensitive: true
+    envFile: .env
+    required: true
+    validateRegex: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+
+  - id: check-git
+    type: command.check
+    command: git
+    installHint: Git is required to contribute. Install Git, then re-run onboarding.
+
+  - id: check-bun
+    type: command.check
+    command: bun
+    installHint: Bun is required for this repository. Install Bun, then re-run onboarding.
+
+  - id: install-dependencies
+    type: command.run
+    command: bun install
+    consentMessage: Install project dependencies now?
+
+  - id: run-typecheck
+    type: command.run
+    command: bun run typecheck
+    consentMessage: Run TypeScript type checks now?
+
+  - id: write-env-file
+    type: env.write
+    path: .env
+    overwrite: true
+    entries:
+      - key: ENV
+        value: "{{ENV}}"
+      - key: NAME
+        value: "{{NAME}}"
+      - key: EMAIL
+        value: "{{EMAIL}}"
+
+  - id: run-tests
+    type: command.run
+    command: bun test
+    consentMessage: Run the test suite now?

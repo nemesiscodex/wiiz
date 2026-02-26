@@ -1,0 +1,25 @@
+{
+  "name": "repo-onboard",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch src/cli.tsx run",
+    "onboard": "bun src/cli.tsx",
+    "validate": "bun src/cli.tsx validate",
+    "llm": "bun src/cli.tsx llm",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "ink": "^6.3.1",
+    "ink-spinner": "^5.0.0",
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

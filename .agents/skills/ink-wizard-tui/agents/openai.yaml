@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ink Wizard TUI"
+  short_description: "Build Ink-based step-by-step CLI wizards"
+  default_prompt: "Use $ink-wizard-tui to scaffold an Ink wizard with question steps and action options."
