@@ -7,8 +7,15 @@ import {interpolateTemplate} from './interpolate.js';
 export type StepExecutionResult = {
   stepId: string;
   type: NonPromptStep['type'];
-  targetPath: string;
-  action: 'write' | 'append' | 'env.write' | 'command.run' | 'command.check';
+  targetPath?: string;
+  action:
+    | 'write'
+    | 'append'
+    | 'env.write'
+    | 'command.run'
+    | 'command.check'
+    | 'display'
+    | 'banner';
   contentPreview: string;
   dryRun: boolean;
   stopExecution?: boolean;
@@ -93,6 +100,36 @@ function shellQuote(value: string): string {
 async function isCommandAvailable(commandName: string, cwd: string): Promise<boolean> {
   const result = await runShellCommandCapture(`command -v ${shellQuote(commandName)}`, cwd);
   return result.code === 0;
+}
+
+async function resolveBannerContent(
+  step: Extract<NonPromptStep, {type: 'ascii' | 'banner'}>,
+  context: Record<string, string>,
+  cwd: string
+): Promise<{content: string; sourcePath?: string}> {
+  if (step.content !== undefined) {
+    return {
+      content: interpolateTemplate(step.content, context)
+    };
+  }
+
+  if (!step.path) {
+    throw new Error(`Step '${step.id}' must define 'content' or 'path'.`);
+  }
+
+  const sourcePath = resolveInterpolatedPath(step.path, context, cwd);
+
+  let rawContent: string;
+  try {
+    rawContent = await fs.readFile(sourcePath, 'utf8');
+  } catch {
+    throw new Error(`Step '${step.id}' could not read source file: ${sourcePath}`);
+  }
+
+  return {
+    content: interpolateTemplate(rawContent, context),
+    sourcePath
+  };
 }
 
 export async function executeOperationStep(
@@ -218,28 +255,55 @@ export async function executeOperationStep(
     };
   }
 
-  const commandName = interpolateTemplate(step.command, options.context);
-  const available = await isCommandAvailable(commandName, cwd);
-  if (!available) {
+  if (step.type === 'display' || step.type === 'note') {
+    const message = interpolateTemplate(step.message, options.context);
+    return {
+      stepId: step.id,
+      type: step.type,
+      action: 'display',
+      contentPreview: message,
+      dryRun: options.dryRun
+    };
+  }
+
+  if (step.type === 'ascii' || step.type === 'banner') {
+    const resolved = await resolveBannerContent(step, options.context, cwd);
+    return {
+      stepId: step.id,
+      type: step.type,
+      targetPath: resolved.sourcePath,
+      action: 'banner',
+      contentPreview: resolved.content,
+      dryRun: options.dryRun
+    };
+  }
+
+  if (step.type === 'command.check') {
+    const commandName = interpolateTemplate(step.command, options.context);
+    const available = await isCommandAvailable(commandName, cwd);
+    if (!available) {
+      return {
+        stepId: step.id,
+        type: step.type,
+        targetPath: cwd,
+        action: 'command.check',
+        contentPreview:
+          step.installHint ??
+          `Command '${commandName}' is missing. Install it and re-run onboarding.`,
+        dryRun: options.dryRun,
+        stopExecution: true
+      };
+    }
+
     return {
       stepId: step.id,
       type: step.type,
       targetPath: cwd,
       action: 'command.check',
-      contentPreview:
-        step.installHint ??
-        `Command '${commandName}' is missing. Install it and re-run onboarding.`,
-      dryRun: options.dryRun,
-      stopExecution: true
+      contentPreview: `Command '${commandName}' is available.`,
+      dryRun: options.dryRun
     };
   }
 
-  return {
-    stepId: step.id,
-    type: step.type,
-    targetPath: cwd,
-    action: 'command.check',
-    contentPreview: `Command '${commandName}' is available.`,
-    dryRun: options.dryRun
-  };
+  throw new Error(`Unsupported non-prompt step type at runtime: ${String(step.type)}`);
 }

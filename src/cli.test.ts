@@ -296,6 +296,280 @@ describe('run command', () => {
     expect(result.logs.join('\n')).toContain('Please install missing dependency first.');
     expect(result.logs.join('\n')).toContain('Ending onboarding until dependency is installed.');
   });
+
+  test('supports when-gated display/banner primitives', async () => {
+    const tempDir = await makeTempDir();
+    const configPath = path.join(tempDir, 'wizard.yaml');
+    const valuesPath = path.join(tempDir, 'values.json');
+    const bannerPath = path.join(tempDir, 'prod-banner.txt');
+
+    await fs.writeFile(bannerPath, '*** PROD MODE ***\n', 'utf8');
+
+    const config = [
+      'version: 1',
+      'name: With display and banner',
+      'steps:',
+      '  - id: ask-env',
+      '    type: select',
+      '    message: Env',
+      '    var: ENV',
+      '    options:',
+      '      - label: Development',
+      '        value: development',
+      '      - label: Production',
+      '        value: production',
+      '  - id: prod-banner',
+      '    type: banner',
+      '    when:',
+      '      var: ENV',
+      '      equals: production',
+      `    path: ${JSON.stringify(bannerPath)}`,
+      '  - id: prod-note',
+      '    type: display',
+      '    when:',
+      '      var: ENV',
+      '      equals: production',
+      '    message: "Deploy target={{ENV}}"'
+    ].join('\n');
+
+    await fs.writeFile(configPath, config, 'utf8');
+    await fs.writeFile(valuesPath, JSON.stringify({ENV: 'development'}, null, 2), 'utf8');
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath])
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('prod-banner: skipped (when condition not met)');
+    expect(result.logs.join('\n')).toContain('prod-note: skipped (when condition not met)');
+  });
+
+  test('renders banner primitive from a configured file path', async () => {
+    const tempDir = await makeTempDir();
+    const configPath = path.join(tempDir, 'wizard.yaml');
+    const valuesPath = path.join(tempDir, 'values.json');
+    const bannerPath = path.join(tempDir, 'logo.txt');
+
+    await fs.writeFile(bannerPath, '*** HELLO {{NAME}} ***\n', 'utf8');
+
+    const config = [
+      'version: 1',
+      'name: Banner from file',
+      'steps:',
+      '  - id: ask-name',
+      '    type: input',
+      '    message: Name',
+      '    var: NAME',
+      '  - id: show-banner',
+      '    type: banner',
+      `    path: ${JSON.stringify(bannerPath)}`
+    ].join('\n');
+
+    await fs.writeFile(configPath, config, 'utf8');
+    await fs.writeFile(valuesPath, JSON.stringify({NAME: 'julio'}, null, 2), 'utf8');
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath])
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain(`show-banner (from ${bannerPath}):\n  *** HELLO julio ***`);
+  });
+
+  test('renders display and note as multiline blocks', async () => {
+    const tempDir = await makeTempDir();
+    const configPath = path.join(tempDir, 'wizard.yaml');
+    const valuesPath = path.join(tempDir, 'values.json');
+
+    const config = [
+      'version: 1',
+      'name: Message formatting',
+      'steps:',
+      '  - id: ask-name',
+      '    type: input',
+      '    message: Name',
+      '    var: NAME',
+      '  - id: show-display',
+      '    type: display',
+      '    message: "Hello {{NAME}}"',
+      '  - id: show-note',
+      '    type: note',
+      '    message: "Review setup for {{NAME}}"'
+    ].join('\n');
+
+    await fs.writeFile(configPath, config, 'utf8');
+    await fs.writeFile(valuesPath, JSON.stringify({NAME: 'julio'}, null, 2), 'utf8');
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath])
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('show-display:\n  Hello julio');
+    expect(result.logs.join('\n')).toContain('show-note:\n  +------------------------+\n  | Review setup for julio |\n  +------------------------+');
+  });
+
+  test('stops at declined confirm in non-interactive mode by default', async () => {
+    const tempDir = await makeTempDir();
+    const configPath = path.join(tempDir, 'wizard.yaml');
+    const valuesPath = path.join(tempDir, 'values.json');
+    const outputFile = path.join(tempDir, 'out.txt');
+
+    const config = [
+      'version: 1',
+      'name: Confirm stop',
+      'steps:',
+      '  - id: ask-name',
+      '    type: input',
+      '    message: Name',
+      '    var: NAME',
+      '  - id: checkpoint',
+      '    type: confirm',
+      '    message: Continue?',
+      '  - id: write-file',
+      '    type: file.write',
+      `    path: ${outputFile}`,
+      '    content: "hello {{NAME}}"',
+      '    overwrite: true'
+    ].join('\n');
+
+    await fs.writeFile(configPath, config, 'utf8');
+    await fs.writeFile(valuesPath, JSON.stringify({NAME: 'julio'}, null, 2), 'utf8');
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath])
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('checkpoint: declined');
+    expect(result.logs.join('\n')).toContain('Stopping onboarding at confirmation checkpoint.');
+
+    const exists = await fs
+      .access(outputFile)
+      .then(() => true)
+      .catch(() => false);
+    expect(exists).toBe(false);
+  });
+
+  test('continues at confirm when default is yes in non-interactive mode', async () => {
+    const tempDir = await makeTempDir();
+    const configPath = path.join(tempDir, 'wizard.yaml');
+    const valuesPath = path.join(tempDir, 'values.json');
+    const outputFile = path.join(tempDir, 'out.txt');
+
+    const config = [
+      'version: 1',
+      'name: Confirm continue',
+      'steps:',
+      '  - id: ask-name',
+      '    type: input',
+      '    message: Name',
+      '    var: NAME',
+      '  - id: checkpoint',
+      '    type: confirm',
+      '    message: Continue?',
+      '    default: "yes"',
+      '  - id: write-file',
+      '    type: file.write',
+      `    path: ${outputFile}`,
+      '    content: "hello {{NAME}}"',
+      '    overwrite: true'
+    ].join('\n');
+
+    await fs.writeFile(configPath, config, 'utf8');
+    await fs.writeFile(valuesPath, JSON.stringify({NAME: 'julio'}, null, 2), 'utf8');
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath])
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('checkpoint: confirmed');
+
+    const content = await fs.readFile(outputFile, 'utf8');
+    expect(content).toContain('hello julio');
+  });
+
+  test('stores confirm decision in context variable for later interpolation', async () => {
+    const tempDir = await makeTempDir();
+    const configPath = path.join(tempDir, 'wizard.yaml');
+    const valuesPath = path.join(tempDir, 'values.json');
+    const outputFile = path.join(tempDir, 'out.txt');
+
+    const config = [
+      'version: 1',
+      'name: Confirm var interpolation',
+      'steps:',
+      '  - id: ask-name',
+      '    type: input',
+      '    message: Name',
+      '    var: NAME',
+      '  - id: checkpoint',
+      '    type: confirm',
+      '    message: Continue?',
+      '    var: CONTINUE_SETUP',
+      '    default: "yes"',
+      '    abortOnDecline: false',
+      '  - id: write-file',
+      '    type: file.write',
+      `    path: ${outputFile}`,
+      '    content: "name={{NAME}}, continue={{CONTINUE_SETUP}}"',
+      '    overwrite: true'
+    ].join('\n');
+
+    await fs.writeFile(configPath, config, 'utf8');
+    await fs.writeFile(valuesPath, JSON.stringify({NAME: 'julio'}, null, 2), 'utf8');
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath])
+    );
+
+    expect(result.code).toBe(0);
+    const content = await fs.readFile(outputFile, 'utf8');
+    expect(content).toContain('continue=yes');
+  });
+
+  test('supports when conditions using confirm context variable', async () => {
+    const tempDir = await makeTempDir();
+    const configPath = path.join(tempDir, 'wizard.yaml');
+    const valuesPath = path.join(tempDir, 'values.json');
+    const outputFile = path.join(tempDir, 'out.txt');
+
+    const config = [
+      'version: 1',
+      'name: Confirm var when',
+      'steps:',
+      '  - id: ask-name',
+      '    type: input',
+      '    message: Name',
+      '    var: NAME',
+      '  - id: checkpoint',
+      '    type: confirm',
+      '    message: Continue?',
+      '    var: CONTINUE_SETUP',
+      '    default: "no"',
+      '    abortOnDecline: false',
+      '  - id: gated-write',
+      '    type: file.write',
+      '    when:',
+      '      var: CONTINUE_SETUP',
+      '      equals: yes',
+      `    path: ${outputFile}`,
+      '    content: "hello {{NAME}}"',
+      '    overwrite: true'
+    ].join('\n');
+
+    await fs.writeFile(configPath, config, 'utf8');
+    await fs.writeFile(valuesPath, JSON.stringify({NAME: 'julio'}, null, 2), 'utf8');
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath])
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('checkpoint: declined');
+    expect(result.logs.join('\n')).toContain('gated-write: skipped (when condition not met)');
+  });
 });
 
 describe('skill command', () => {

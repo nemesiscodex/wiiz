@@ -6,11 +6,13 @@ import Spinner from 'ink-spinner';
 import {WizardApp, type PromptResult} from './WizardApp.js';
 import {loadConfig} from './config/loadConfig.js';
 import {assertValidConfig, isPromptStep, validateConfigShape} from './config/validateConfig.js';
-import type {CommandRunStep, PromptStep, SelectStep} from './config/types.js';
+import type {CommandRunStep, ConfirmStep, PromptStep, SelectStep} from './config/types.js';
 import {describeConfigForLlm} from './engine/describeForLlm.js';
 import {executeOperationStep, type StepExecutionResult} from './engine/executeStep.js';
 import {getPromptValidationError, parseValuesJson, validateProvidedValues} from './engine/context.js';
 import {formatEnvPrefillPreview, loadEnvPrefillValue} from './engine/envPrefill.js';
+import {interpolateTemplate} from './engine/interpolate.js';
+import {shouldRunWhen} from './engine/when.js';
 import {installRepoOnboardAuthorSkill} from './skills/installSkill.js';
 
 function printUsage(): void {
@@ -155,12 +157,82 @@ function formatResultLine(result: StepExecutionResult): string {
   const symbol = blocked ? '✗' : skipped ? '○' : '✓';
   const color = blocked ? '\x1b[31m' : skipped ? '\x1b[33m' : '\x1b[32m';
   const reset = '\x1b[0m';
+  const statusPrefix = `${color}${symbol}${reset} ${result.stepId}`;
 
   if (result.type === 'command.check' || result.type === 'command.run') {
-    return `${color}${symbol}${reset} ${result.stepId}: ${result.contentPreview}`;
+    return `${statusPrefix}: ${result.contentPreview}`;
   }
 
-  return `${color}${symbol}${reset} ${result.stepId} -> ${result.targetPath}: ${result.contentPreview}`;
+  if (result.type === 'ascii' || result.type === 'banner') {
+    const sourceSuffix = result.targetPath ? ` (from ${result.targetPath})` : '';
+    return `${statusPrefix}${sourceSuffix}:\n${formatIndentedBlock(result.contentPreview)}`;
+  }
+
+  if (result.type === 'display') {
+    return `${statusPrefix}:\n${formatIndentedBlock(result.contentPreview)}`;
+  }
+
+  if (result.type === 'note') {
+    return `${statusPrefix}:\n${formatFramedBlock(result.contentPreview)}`;
+  }
+
+  if (result.targetPath) {
+    return `${statusPrefix} -> ${result.targetPath}: ${result.contentPreview}`;
+  }
+
+  return `${statusPrefix}: ${result.contentPreview}`;
+}
+
+function normalizeRenderedLines(content: string): string[] {
+  const normalized = content.replaceAll('\r\n', '\n').replace(/\n+$/u, '');
+  if (normalized.length === 0) {
+    return [''];
+  }
+
+  return normalized.split('\n');
+}
+
+function formatIndentedBlock(content: string): string {
+  return normalizeRenderedLines(content).map(line => `  ${line}`).join('\n');
+}
+
+function formatFramedBlock(content: string): string {
+  const lines = normalizeRenderedLines(content);
+  const width = Math.max(...lines.map(line => line.length), 0);
+  const border = `  +-${'-'.repeat(width)}-+`;
+  const body = lines.map(line => `  | ${line.padEnd(width, ' ')} |`).join('\n');
+
+  return [border, body, border].join('\n');
+}
+
+async function resolveConfirmDecision(
+  step: ConfirmStep,
+  context: Record<string, string>,
+  valuesPath: string | undefined
+): Promise<boolean | 'cancelled'> {
+  const message = interpolateTemplate(step.message, context);
+
+  if (valuesPath) {
+    return step.default === 'yes';
+  }
+
+  const confirmPrompt: SelectStep = {
+    id: `${step.id}__confirm`,
+    type: 'select',
+    message,
+    var: `${step.id}__confirm`,
+    options: [
+      {label: 'Yes, continue', value: 'yes'},
+      {label: 'No, stop here', value: 'no'}
+    ]
+  };
+
+  const result = await promptForStep(confirmPrompt);
+  if (result.status === 'cancelled') {
+    return 'cancelled';
+  }
+
+  return result.value === 'yes';
 }
 
 async function runCommand(args: string[]): Promise<number> {
@@ -209,6 +281,35 @@ async function runCommand(args: string[]): Promise<number> {
   const cwd = process.cwd();
 
   for (const step of loaded.config.steps) {
+    if (!shouldRunWhen(step.when, context)) {
+      console.log(`- \x1b[90m○\x1b[0m ${step.id}: skipped (when condition not met)`);
+      continue;
+    }
+
+    if (step.type === 'confirm') {
+      const decision = await resolveConfirmDecision(step, context, valuesPath);
+      if (decision === 'cancelled') {
+        console.log('\nWizard cancelled.');
+        return 0;
+      }
+
+      if (step.var) {
+        context[step.var] = decision ? 'yes' : 'no';
+      }
+
+      if (decision) {
+        console.log(`- \x1b[32m✓\x1b[0m ${step.id}: confirmed`);
+        continue;
+      }
+
+      console.log(`- \x1b[33m○\x1b[0m ${step.id}: declined`);
+      if (step.abortOnDecline ?? true) {
+        console.log('Stopping onboarding at confirmation checkpoint.');
+        return 0;
+      }
+      continue;
+    }
+
     if (isPromptStep(step)) {
       if (valuesPath) {
         continue;
@@ -268,7 +369,13 @@ async function runCommand(args: string[]): Promise<number> {
     }
 
     try {
-      const shouldSpin = !valuesPath && !(step.type === 'command.run' && approved && !dryRun);
+      const shouldSpin =
+        !valuesPath &&
+        step.type !== 'display' &&
+        step.type !== 'note' &&
+        step.type !== 'ascii' &&
+        step.type !== 'banner' &&
+        !(step.type === 'command.run' && approved && !dryRun);
       const execute = () => executeOperationStep(step, {context, dryRun, approved});
       if (!shouldSpin && step.type === 'command.run' && approved && !dryRun) {
         console.log(`\x1b[36m→ Running ${step.id}...\x1b[0m`);

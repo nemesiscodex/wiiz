@@ -23,6 +23,17 @@ function resolveInputValue(rawValue: string, defaultValue?: string): string {
   return defaultValue ?? '';
 }
 
+export function formatPromptInputValue(
+  step: Extract<PromptStep, {type: 'input'}>,
+  inputValue: string
+): string {
+  if (step.sensitive === false) {
+    return inputValue;
+  }
+
+  return '•'.repeat(inputValue.length);
+}
+
 function getDisplayStepId(stepId: string): string {
   const baseId = stepId.split('__')[0] ?? stepId;
   return `[${baseId}]`;
@@ -61,6 +72,8 @@ export function WizardApp({step, onFinish}: WizardAppProps) {
 
     return new RegExp(step.validateRegex);
   }, [step]);
+  const renderedInputValue =
+    step.type === 'input' ? formatPromptInputValue(step, inputValue) : inputValue;
 
   useInput((input, key) => {
     if (input === 'q' || key.escape) {
@@ -160,7 +173,7 @@ export function WizardApp({step, onFinish}: WizardAppProps) {
       ) : (
         <Box marginTop={1} flexDirection="column">
           <Text color="cyan">
-            {'>'} {inputValue}
+            {'>'} {renderedInputValue}
             {inputValue.length === 0 && step.default ? <Text dimColor>[default: {step.default}]</Text> : null}
           </Text>
           <Text dimColor>Variable: {step.var}</Text>

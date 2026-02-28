@@ -178,4 +178,55 @@ describe('executeOperationStep', () => {
     expect(result.stopExecution).toBeUndefined();
     expect(result.contentPreview).toContain('is available');
   });
+
+  test('renders display primitive with interpolation', async () => {
+    const cwd = await makeTempDir();
+    const result = await executeOperationStep(
+      {
+        id: 'show-note',
+        type: 'display',
+        message: 'Hello {{name}}'
+      },
+      {context: {name: 'julio'}, dryRun: false, cwd}
+    );
+
+    expect(result.action).toBe('display');
+    expect(result.contentPreview).toBe('Hello julio');
+    expect(result.targetPath).toBeUndefined();
+  });
+
+  test('renders banner primitive with interpolation', async () => {
+    const cwd = await makeTempDir();
+    const result = await executeOperationStep(
+      {
+        id: 'show-banner',
+        type: 'banner',
+        content: '*** {{name}} ***'
+      },
+      {context: {name: 'julio'}, dryRun: false, cwd}
+    );
+
+    expect(result.action).toBe('banner');
+    expect(result.contentPreview).toBe('*** julio ***');
+    expect(result.targetPath).toBeUndefined();
+  });
+
+  test('renders banner primitive from a file path', async () => {
+    const cwd = await makeTempDir();
+    const sourcePath = path.join(cwd, 'logo.txt');
+    await fs.writeFile(sourcePath, '*** {{name}} ***', 'utf8');
+
+    const result = await executeOperationStep(
+      {
+        id: 'show-banner-file',
+        type: 'banner',
+        path: 'logo.txt'
+      },
+      {context: {name: 'julio'}, dryRun: false, cwd}
+    );
+
+    expect(result.action).toBe('banner');
+    expect(result.contentPreview).toBe('*** julio ***');
+    expect(result.targetPath).toBe(sourcePath);
+  });
 });

@@ -16,8 +16,26 @@ describe('validateConfigShape', () => {
         {
           id: 'write-file',
           type: 'file.write',
+          when: {var: 'NAME', exists: true},
           path: 'out.txt',
           content: 'Hello {{NAME}}'
+        },
+        {
+          id: 'checkpoint',
+          type: 'confirm',
+          message: 'Continue?',
+          default: 'yes'
+        },
+        {
+          id: 'note',
+          type: 'note',
+          when: {var: 'NAME', notEquals: ''},
+          message: 'Using {{NAME}}'
+        },
+        {
+          id: 'banner',
+          type: 'banner',
+          path: '.onboard/logo.txt'
         },
         {
           id: 'check-bun',
@@ -45,6 +63,24 @@ describe('validateConfigShape', () => {
 
     const result = validateConfigShape(config);
     expect(result.errors.join('\n')).toContain('unsupported type');
+  });
+
+  test('rejects banner step when both content and path are set', () => {
+    const config = {
+      version: 1,
+      name: 'bad',
+      steps: [
+        {
+          id: 'banner',
+          type: 'banner',
+          content: '*** START ***',
+          path: '.onboard/logo.txt'
+        }
+      ]
+    };
+
+    const result = validateConfigShape(config);
+    expect(result.errors.join('\n')).toContain("must define exactly one of 'content' or 'path'");
   });
 
   test('rejects interpolation of unknown variable', () => {
@@ -116,5 +152,102 @@ describe('validateConfigShape', () => {
 
     const result = validateConfigShape(config);
     expect(result.errors.join('\n')).toContain("invalid 'sensitive'");
+  });
+
+  test('rejects invalid when shape', () => {
+    const config = {
+      version: 1,
+      name: 'bad',
+      steps: [
+        {
+          id: 'ask-env',
+          type: 'input',
+          message: 'Env',
+          var: 'ENV'
+        },
+        {
+          id: 'bad-when',
+          type: 'file.write',
+          when: {var: 'ENV'},
+          path: 'out.txt',
+          content: 'x'
+        }
+      ]
+    };
+
+    const result = validateConfigShape(config);
+    expect(result.errors.join('\n')).toContain("defines 'when' but no condition");
+  });
+
+  test('rejects when.var that is not collected by prior prompt step', () => {
+    const config = {
+      version: 1,
+      name: 'bad',
+      steps: [
+        {
+          id: 'note',
+          type: 'display',
+          when: {var: 'ENV', equals: 'production'},
+          message: 'Hello'
+        },
+        {
+          id: 'ask-env',
+          type: 'input',
+          message: 'Env',
+          var: 'ENV'
+        }
+      ]
+    };
+
+    const result = validateConfigShape(config);
+    expect(result.errors.join('\n')).toContain("references 'when.var=ENV' before it is collected");
+  });
+
+  test('rejects confirm with invalid default value', () => {
+    const config = {
+      version: 1,
+      name: 'bad',
+      steps: [
+        {
+          id: 'ask-env',
+          type: 'input',
+          message: 'Env',
+          var: 'ENV'
+        },
+        {
+          id: 'checkpoint',
+          type: 'confirm',
+          message: 'Continue?',
+          default: 'maybe'
+        }
+      ]
+    };
+
+    const result = validateConfigShape(config);
+    expect(result.errors.join('\n')).toContain("invalid 'default'");
+  });
+
+  test('rejects confirm with invalid var type', () => {
+    const config = {
+      version: 1,
+      name: 'bad',
+      steps: [
+        {
+          id: 'ask-env',
+          type: 'input',
+          message: 'Env',
+          var: 'ENV'
+        },
+        {
+          id: 'checkpoint',
+          type: 'confirm',
+          message: 'Continue?',
+          var: ''
+        }
+      ]
+    };
+
+    const result = validateConfigShape(config);
+    expect(result.errors.join('\n')).toContain("invalid 'var'");
   });
 });

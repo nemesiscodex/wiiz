@@ -25,8 +25,15 @@ Build onboarding config that works with repo-onboard CLI.
 - Use `env.write` for `.env` generation.
 - Use `command.check` to verify required tooling before file operations.
 - Use `command.run` for optional setup commands that need user consent.
+- Use `confirm` checkpoints before risky operations when explicit user acknowledgement is needed.
+- For `confirm`, optional `var` stores decision as `yes`/`no` for later `when` or interpolation.
+- `confirm` defaults: in non-interactive mode, omitted `default` behaves as `no`; declined confirmation aborts unless `abortOnDecline: false`.
+- Use `display`/`note` for short inline guidance.
+- Use `ascii`/`banner` for section headers in terminal output. Prefer `path` when reusing large ASCII art.
 - Use `file.write` for full-file templates.
 - Use `file.append` for additive setup notes.
+- Optional `when` condition gates step execution based on prior prompt variables.
+- `when` supports: `var` (required) plus `equals`, `notEquals`, `oneOf`, and/or `exists`.
 - Reference prior values with `{{VAR_NAME}}`.
 - Escape literal braces with `\{{`.
 
@@ -47,7 +54,7 @@ When generating onboarding artifacts, produce these files:
 1. `.onboard/wizard.yaml`
 - Must use `version: 1`.
 - Must include `name` and non-empty ordered `steps`.
-- Must only use supported step types: `input`, `select`, `file.write`, `file.append`, `env.write`, `command.run`, `command.check`.
+- Must only use supported step types: `input`, `select`, `confirm`, `display`, `note`, `ascii`, `banner`, `file.write`, `file.append`, `env.write`, `command.run`, `command.check`.
 
 2. `.onboard/values.example.json`
 - Map each prompt `var` to a representative sample value.
@@ -59,8 +66,9 @@ Before finishing:
 
 1. Verify every `{{VAR}}` token is defined by a prior prompt step.
 2. Verify all select options have unique `value` fields.
-3. Verify regex patterns are valid when present.
-4. Verify non-interactive execution can run with values JSON.
+3. Verify every `when.var` references a value collected by a prior input/select/confirm(with var) step.
+4. Verify regex patterns are valid when present.
+5. Verify non-interactive execution can run with values JSON.
 
 If repo-onboard CLI is available, run:
 

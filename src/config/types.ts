@@ -1,5 +1,18 @@
 export const DEFAULT_CONFIG_PATH = '.onboard/wizard.yaml';
 
+export type StepWhen = {
+  var: string;
+  equals?: string;
+  notEquals?: string;
+  oneOf?: string[];
+  exists?: boolean;
+};
+
+export type StepBase = {
+  id: string;
+  when?: StepWhen;
+};
+
 export type InputStep = {
   id: string;
   type: 'input';
@@ -11,7 +24,7 @@ export type InputStep = {
   required?: boolean;
   default?: string;
   validateRegex?: string;
-};
+} & StepBase;
 
 export type SelectOption = {
   label: string;
@@ -27,7 +40,7 @@ export type SelectStep = {
   envKey?: string;
   sensitive?: boolean;
   options: SelectOption[];
-};
+} & StepBase;
 
 export type FileWriteStep = {
   id: string;
@@ -35,7 +48,7 @@ export type FileWriteStep = {
   path: string;
   content: string;
   overwrite?: boolean;
-};
+} & StepBase;
 
 export type FileAppendStep = {
   id: string;
@@ -43,7 +56,7 @@ export type FileAppendStep = {
   path: string;
   content: string;
   createIfMissing?: boolean;
-};
+} & StepBase;
 
 export type EnvWriteEntry = {
   key: string;
@@ -56,7 +69,7 @@ export type EnvWriteStep = {
   path: string;
   entries: EnvWriteEntry[];
   overwrite?: boolean;
-};
+} & StepBase;
 
 export type CommandRunStep = {
   id: string;
@@ -64,14 +77,36 @@ export type CommandRunStep = {
   command: string;
   consentMessage?: string;
   cwd?: string;
-};
+} & StepBase;
 
 export type CommandCheckStep = {
   id: string;
   type: 'command.check';
   command: string;
   installHint?: string;
-};
+} & StepBase;
+
+export type DisplayStep = {
+  id: string;
+  type: 'display' | 'note';
+  message: string;
+} & StepBase;
+
+export type BannerStep = {
+  id: string;
+  type: 'ascii' | 'banner';
+  content?: string;
+  path?: string;
+} & StepBase;
+
+export type ConfirmStep = {
+  id: string;
+  type: 'confirm';
+  message: string;
+  var?: string;
+  default?: 'yes' | 'no';
+  abortOnDecline?: boolean;
+} & StepBase;
 
 export type WizardStep =
   | InputStep
@@ -80,7 +115,10 @@ export type WizardStep =
   | FileAppendStep
   | EnvWriteStep
   | CommandRunStep
-  | CommandCheckStep;
+  | CommandCheckStep
+  | DisplayStep
+  | BannerStep
+  | ConfirmStep;
 
 export type WizardConfig = {
   version: 1;
@@ -94,7 +132,9 @@ export type NonPromptStep =
   | FileAppendStep
   | EnvWriteStep
   | CommandRunStep
-  | CommandCheckStep;
+  | CommandCheckStep
+  | DisplayStep
+  | BannerStep;
 
 export type InputDefinition = {
   var: string;

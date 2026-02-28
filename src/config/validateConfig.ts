@@ -1,7 +1,7 @@
 import type {
   ConfigValidationResult,
   InputStep,
-  NonPromptStep,
+  StepWhen,
   SelectStep,
   WizardConfig,
   WizardStep
@@ -16,7 +16,25 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function collectStepTemplateStrings(step: NonPromptStep): string[] {
+function collectBannerTemplates(step: {content?: string; path?: string}): string[] {
+  const templates: string[] = [];
+
+  if (typeof step.content === 'string') {
+    templates.push(step.content);
+  }
+
+  if (typeof step.path === 'string') {
+    templates.push(step.path);
+  }
+
+  return templates;
+}
+
+function collectStepTemplateStrings(step: WizardStep): string[] {
+  if (step.type === 'input' || step.type === 'select') {
+    return [];
+  }
+
   if (step.type === 'file.write' || step.type === 'file.append') {
     return [step.path, step.content];
   }
@@ -29,7 +47,71 @@ function collectStepTemplateStrings(step: NonPromptStep): string[] {
     return [step.command, step.cwd ?? '', step.consentMessage ?? ''];
   }
 
-  return [step.command, step.installHint ?? ''];
+  if (step.type === 'display' || step.type === 'note') {
+    return [step.message];
+  }
+
+  if (step.type === 'ascii' || step.type === 'banner') {
+    return collectBannerTemplates(step);
+  }
+
+  if (step.type === 'confirm') {
+    return [step.message];
+  }
+
+  if (step.type === 'command.check') {
+    return [step.command, step.installHint ?? ''];
+  }
+
+  return [];
+}
+
+function validateWhenShape(
+  when: unknown,
+  label: string,
+  errors: string[]
+): when is StepWhen {
+  if (!isRecord(when)) {
+    errors.push(`${label} has invalid 'when'; expected object.`);
+    return false;
+  }
+
+  if (!isNonEmptyString(when.var)) {
+    errors.push(`${label} has invalid 'when.var'; expected non-empty string.`);
+  }
+
+  if (when.equals !== undefined && typeof when.equals !== 'string') {
+    errors.push(`${label} has invalid 'when.equals'; expected string.`);
+  }
+
+  if (when.notEquals !== undefined && typeof when.notEquals !== 'string') {
+    errors.push(`${label} has invalid 'when.notEquals'; expected string.`);
+  }
+
+  if (when.exists !== undefined && typeof when.exists !== 'boolean') {
+    errors.push(`${label} has invalid 'when.exists'; expected boolean.`);
+  }
+
+  if (when.oneOf !== undefined) {
+    if (!Array.isArray(when.oneOf) || when.oneOf.length === 0) {
+      errors.push(`${label} has invalid 'when.oneOf'; expected non-empty string array.`);
+    } else if (!when.oneOf.every(value => typeof value === 'string')) {
+      errors.push(`${label} has invalid 'when.oneOf'; expected non-empty string array.`);
+    }
+  }
+
+  if (
+    when.equals === undefined &&
+    when.notEquals === undefined &&
+    when.exists === undefined &&
+    when.oneOf === undefined
+  ) {
+    errors.push(
+      `${label} defines 'when' but no condition. Provide at least one of: equals, notEquals, oneOf, exists.`
+    );
+  }
+
+  return true;
 }
 
 function validateStepShape(step: unknown, index: number, errors: string[]): void {
@@ -48,6 +130,11 @@ function validateStepShape(step: unknown, index: number, errors: string[]): void
   if (!isNonEmptyString(type)) {
     errors.push(`Step '${String(id ?? index)}' is missing a non-empty string 'type'.`);
     return;
+  }
+
+  const stepLabel = `Step '${String(id)}'`;
+  if (step.when !== undefined) {
+    validateWhenShape(step.when, stepLabel, errors);
   }
 
   switch (type) {
@@ -166,6 +253,57 @@ function validateStepShape(step: unknown, index: number, errors: string[]): void
       }
       break;
     }
+    case 'display':
+    case 'note': {
+      if (!isNonEmptyString(step.message)) {
+        errors.push(`Step '${String(id)}' (${type}) must define a non-empty 'message'.`);
+      }
+      break;
+    }
+    case 'ascii':
+    case 'banner': {
+      const hasContent = step.content !== undefined;
+      const hasPath = step.path !== undefined;
+
+      if (hasContent && !isNonEmptyString(step.content)) {
+        errors.push(`Step '${String(id)}' (${type}) has invalid 'content'; expected non-empty string.`);
+      }
+
+      if (hasPath && !isNonEmptyString(step.path)) {
+        errors.push(`Step '${String(id)}' (${type}) has invalid 'path'; expected non-empty string.`);
+      }
+
+      if (hasContent === hasPath) {
+        errors.push(
+          `Step '${String(id)}' (${type}) must define exactly one of 'content' or 'path'.`
+        );
+      }
+      break;
+    }
+    case 'confirm': {
+      if (!isNonEmptyString(step.message)) {
+        errors.push(`Step '${String(id)}' (confirm) must define a non-empty 'message'.`);
+      }
+      if (step.var !== undefined && !isNonEmptyString(step.var)) {
+        errors.push(`Step '${String(id)}' (confirm) has invalid 'var'; expected non-empty string.`);
+      }
+      if (
+        step.default !== undefined &&
+        step.default !== 'yes' &&
+        step.default !== 'no'
+      ) {
+        errors.push(`Step '${String(id)}' (confirm) has invalid 'default'; expected 'yes' or 'no'.`);
+      }
+      if (
+        step.abortOnDecline !== undefined &&
+        typeof step.abortOnDecline !== 'boolean'
+      ) {
+        errors.push(
+          `Step '${String(id)}' (confirm) has invalid 'abortOnDecline'; expected boolean.`
+        );
+      }
+      break;
+    }
     default:
       errors.push(`Step '${String(id)}' has unsupported type '${type}'.`);
   }
@@ -178,6 +316,15 @@ function validateInterpolationReferences(steps: WizardStep[], errors: string[]):
 
   for (const step of steps) {
     if (step.type === 'input' || step.type === 'select') {
+      if (assignedVars.has(step.var)) {
+        duplicateVars.push(step.var);
+      }
+      assignedVars.add(step.var);
+      availableVars.add(step.var);
+      continue;
+    }
+
+    if (step.type === 'confirm' && step.var) {
       if (assignedVars.has(step.var)) {
         duplicateVars.push(step.var);
       }
@@ -203,12 +350,28 @@ function validateInterpolationReferences(steps: WizardStep[], errors: string[]):
 
 function validateStepSemantics(config: WizardConfig, errors: string[], warnings: string[]): void {
   const seenStepIds = new Set<string>();
+  const availableVars = new Set<string>();
 
   for (const step of config.steps) {
     if (seenStepIds.has(step.id)) {
       errors.push(`Duplicate step id '${step.id}'.`);
     }
     seenStepIds.add(step.id);
+
+    if (step.when) {
+      if (!availableVars.has(step.when.var)) {
+        errors.push(
+          `Step '${step.id}' references 'when.var=${step.when.var}' before it is collected by a prior input/select step.`
+        );
+      }
+
+      if (step.when.oneOf) {
+        const unique = new Set(step.when.oneOf);
+        if (unique.size !== step.when.oneOf.length) {
+          errors.push(`Step '${step.id}' has duplicate values in 'when.oneOf'.`);
+        }
+      }
+    }
 
     if (step.type === 'input' && step.validateRegex) {
       try {
@@ -224,6 +387,22 @@ function validateStepSemantics(config: WizardConfig, errors: string[], warnings:
       if (uniqueValues.size !== values.length) {
         errors.push(`Select step '${step.id}' has duplicate option values.`);
       }
+    }
+
+    if (step.type === 'confirm') {
+      if (step.abortOnDecline === false && step.default === 'no') {
+        warnings.push(
+          `Confirm step '${step.id}' defaults to 'no' but does not abort when declined; it will auto-continue in non-interactive mode.`
+        );
+      }
+    }
+
+    if (step.type === 'input' || step.type === 'select') {
+      availableVars.add(step.var);
+    }
+
+    if (step.type === 'confirm' && step.var) {
+      availableVars.add(step.var);
     }
   }
 

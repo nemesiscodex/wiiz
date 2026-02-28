@@ -1,6 +1,10 @@
 version: 1
 name: repo-onboard contributor setup
 steps:
+  - id: welcome-logo
+    type: ascii
+    path: .onboard/logo.txt
+
   - id: pick-env
     type: select
     message: Pick runtime environment
@@ -29,6 +33,57 @@ steps:
     envFile: .env
     required: true
     validateRegex: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+
+  - id: run-example-primitives
+    type: confirm
+    message: Run optional example steps for the remaining primitives?
+    var: RUN_EXAMPLES
+    default: "no"
+    abortOnDecline: false
+
+  - id: example-banner
+    type: banner
+    when:
+      var: RUN_EXAMPLES
+      equals: yes
+    content: |
+      ============================
+        OPTIONAL EXAMPLE STEPS
+      ============================
+
+  - id: example-display
+    type: display
+    when:
+      var: RUN_EXAMPLES
+      equals: yes
+    message: Preparing example outputs for {{NAME}} in {{ENV}} mode.
+
+  - id: example-note
+    type: note
+    when:
+      var: RUN_EXAMPLES
+      equals: yes
+    message: These example steps write files under .onboard/examples so each primitive has a concrete reference.
+
+  - id: example-write-file
+    type: file.write
+    when:
+      var: RUN_EXAMPLES
+      equals: yes
+    path: .onboard/examples/profile.txt
+    overwrite: true
+    content: |
+      name={{NAME}}
+      email={{EMAIL}}
+      env={{ENV}}
+
+  - id: example-append-file
+    type: file.append
+    when:
+      var: RUN_EXAMPLES
+      equals: yes
+    path: .onboard/examples/activity.log
+    content: "example-run name={{NAME}} env={{ENV}}\n"
 
   - id: check-git
     type: command.check

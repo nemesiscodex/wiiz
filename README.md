@@ -90,6 +90,42 @@ You can control masking with `sensitive` on `input`/`select` steps:
 - explicit `sensitive: true`: masked preview (`ab**`)
 - `sensitive: false`: show full preview value
 
+### `confirm`
+
+Explicit user checkpoint for risky transitions.
+Interactive mode prompts `Yes/No`; non-interactive mode (`--values`) uses `default` (`no` when omitted).
+By default a declined confirmation stops onboarding (`abortOnDecline: true`).
+Set optional `var` to store the decision as `"yes"` or `"no"` for later steps.
+
+```yaml
+- id: confirm-destructive
+  type: confirm
+  message: Continue with database reset?
+  var: CONTINUE_RESET
+  default: "no"
+  abortOnDecline: true
+```
+
+### `display` / `note`
+
+Render interpolated informational text in the run output.
+
+```yaml
+- id: show-target
+  type: display
+  message: Preparing deployment for {{RUNTIME_ENV}}
+```
+
+### `ascii` / `banner`
+
+Render interpolated banner/ascii content in the run output. Use inline `content` for small snippets, or `path` to load larger art from a text file.
+
+```yaml
+- id: section-header
+  type: ascii
+  path: .onboard/logo.txt
+```
+
 ### `file.write`
 
 Write interpolated content into a file. Fails if target exists unless `overwrite: true`.
@@ -152,6 +188,27 @@ Verify a command exists in PATH. If missing, print install guidance and end onbo
   command: bun
   installHint: Bun is required. Install it and re-run onboarding.
 ```
+
+## Conditional Execution (`when`)
+
+Every step can include an optional `when` block to gate execution using previously collected prompt variables.
+Multiple conditions are combined with logical AND.
+
+```yaml
+- id: only-prod-note
+  type: note
+  when:
+    var: RUNTIME_ENV
+    equals: production
+  message: Production checks enabled.
+```
+
+Supported `when` keys:
+- `var` (required): variable name collected by a prior `input`/`select` step.
+- `equals`: run only when value matches exactly.
+- `notEquals`: run only when value differs.
+- `oneOf`: run only when value is in the provided list.
+- `exists`: run only when value is non-empty (`true`) or empty/missing (`false`).
 
 ## Interpolation
 

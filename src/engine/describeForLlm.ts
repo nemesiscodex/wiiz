@@ -1,11 +1,20 @@
-import type {InputDefinition, NonPromptStep, WizardConfig, WizardStep} from '../config/types.js';
+import type {
+  InputDefinition,
+  NonPromptStep,
+  StepWhen,
+  WizardConfig,
+  WizardStep
+} from '../config/types.js';
 import {collectInputDefinitions} from './context.js';
 
 type LlmOperation = {
   stepId: string;
   type: NonPromptStep['type'];
+  when?: StepWhen;
   pathTemplate?: string;
+  sourcePathTemplate?: string;
   contentTemplate?: string;
+  messageTemplate?: string;
   entries?: Array<{key: string; valueTemplate: string}>;
   commandTemplate?: string;
   cwdTemplate?: string;
@@ -16,6 +25,7 @@ type LlmOperation = {
 type LlmSafety = {
   stepId: string;
   type: NonPromptStep['type'];
+  when?: StepWhen;
   overwrite?: boolean;
   createIfMissing?: boolean;
   requiresApproval?: boolean;
@@ -27,6 +37,7 @@ function toOperation(step: WizardStep): LlmOperation | undefined {
     return {
       stepId: step.id,
       type: step.type,
+      when: step.when,
       pathTemplate: step.path,
       contentTemplate: step.content
     };
@@ -36,6 +47,7 @@ function toOperation(step: WizardStep): LlmOperation | undefined {
     return {
       stepId: step.id,
       type: step.type,
+      when: step.when,
       pathTemplate: step.path,
       entries: step.entries.map(entry => ({key: entry.key, valueTemplate: entry.value}))
     };
@@ -45,6 +57,7 @@ function toOperation(step: WizardStep): LlmOperation | undefined {
     return {
       stepId: step.id,
       type: step.type,
+      when: step.when,
       commandTemplate: step.command,
       cwdTemplate: step.cwd,
       consentMessage: step.consentMessage
@@ -55,8 +68,28 @@ function toOperation(step: WizardStep): LlmOperation | undefined {
     return {
       stepId: step.id,
       type: step.type,
+      when: step.when,
       commandTemplate: step.command,
       installHint: step.installHint
+    };
+  }
+
+  if (step.type === 'display' || step.type === 'note') {
+    return {
+      stepId: step.id,
+      type: step.type,
+      when: step.when,
+      messageTemplate: step.message
+    };
+  }
+
+  if (step.type === 'ascii' || step.type === 'banner') {
+    return {
+      stepId: step.id,
+      type: step.type,
+      when: step.when,
+      sourcePathTemplate: step.path,
+      contentTemplate: step.content
     };
   }
 
@@ -65,27 +98,32 @@ function toOperation(step: WizardStep): LlmOperation | undefined {
 
 function toSafety(step: WizardStep): LlmSafety | undefined {
   if (step.type === 'file.write') {
-    return {stepId: step.id, type: step.type, overwrite: step.overwrite ?? false};
+    return {stepId: step.id, type: step.type, when: step.when, overwrite: step.overwrite ?? false};
   }
 
   if (step.type === 'file.append') {
     return {
       stepId: step.id,
       type: step.type,
+      when: step.when,
       createIfMissing: step.createIfMissing ?? true
     };
   }
 
   if (step.type === 'env.write') {
-    return {stepId: step.id, type: step.type, overwrite: step.overwrite ?? false};
+    return {stepId: step.id, type: step.type, when: step.when, overwrite: step.overwrite ?? false};
   }
 
   if (step.type === 'command.run') {
-    return {stepId: step.id, type: step.type, requiresApproval: true};
+    return {stepId: step.id, type: step.type, when: step.when, requiresApproval: true};
   }
 
   if (step.type === 'command.check') {
-    return {stepId: step.id, type: step.type, blocksWizardWhenMissing: true};
+    return {stepId: step.id, type: step.type, when: step.when, blocksWizardWhenMissing: true};
+  }
+
+  if (step.type === 'display' || step.type === 'note' || step.type === 'ascii' || step.type === 'banner') {
+    return {stepId: step.id, type: step.type, when: step.when};
   }
 
   return undefined;
