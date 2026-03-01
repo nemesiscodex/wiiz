@@ -1,4 +1,5 @@
 import type {InputDefinition, InputStep, PromptStep, SelectStep, WizardConfig, WizardStep} from '../config/types.js';
+import {shouldRunWhen} from './when.js';
 
 export function collectInputDefinitions(config: WizardConfig): InputDefinition[] {
   const definitions: InputDefinition[] = [];
@@ -42,6 +43,10 @@ export function collectInputDefinitions(config: WizardConfig): InputDefinition[]
         if (step.default) {
           collectFromSteps(step.default.steps);
         }
+      }
+
+      if (step.type === 'group') {
+        collectFromSteps(step.steps);
       }
     }
   }
@@ -100,6 +105,10 @@ export function validateProvidedValues(
 
   function validateSteps(steps: WizardStep[]): void {
     for (const step of steps) {
+      if (step.when && !shouldRunWhen(step.when, context)) {
+        continue;
+      }
+
       if (step.type === 'input' || step.type === 'select') {
         const provided = providedValues[step.var];
 
@@ -146,6 +155,9 @@ export function validateProvidedValues(
       }
 
       if (step.type !== 'match') {
+        if (step.type === 'group') {
+          validateSteps(step.steps);
+        }
         continue;
       }
 

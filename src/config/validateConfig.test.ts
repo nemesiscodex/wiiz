@@ -72,6 +72,18 @@ describe('validateConfigShape', () => {
               }
             ]
           }
+        },
+        {
+          id: 'setup-group',
+          type: 'group',
+          cwd: 'scripts',
+          steps: [
+            {
+              id: 'group-note',
+              type: 'display',
+              message: 'Grouped for {{NAME}}'
+            }
+          ]
         }
       ]
     };
@@ -299,6 +311,23 @@ describe('validateConfigShape', () => {
 
     const result = validateConfigShape(config);
     expect(result.errors.join('\n')).toContain("must define a non-empty 'cases' array");
+  });
+
+  test('rejects group without nested steps', () => {
+    const config = {
+      version: 1,
+      name: 'bad',
+      steps: [
+        {
+          id: 'group',
+          type: 'group',
+          steps: []
+        }
+      ]
+    };
+
+    const result = validateConfigShape(config);
+    expect(result.errors.join('\n')).toContain("must define a non-empty 'steps' array");
   });
 
   test('rejects overlapping match cases', () => {

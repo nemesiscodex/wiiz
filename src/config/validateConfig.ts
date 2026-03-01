@@ -64,6 +64,10 @@ function collectStepTemplateStrings(step: WizardStep): string[] {
     return [step.command, step.installHint ?? ''];
   }
 
+  if (step.type === 'group') {
+    return [step.cwd ?? ''];
+  }
+
   return [];
 }
 
@@ -340,6 +344,18 @@ function validateStepShape(step: unknown, index: number, errors: string[], path 
       }
       break;
     }
+    case 'group': {
+      if (step.cwd !== undefined && typeof step.cwd !== 'string') {
+        errors.push(`Step '${String(id)}' (group) has invalid 'cwd'; expected string.`);
+      }
+      if (!Array.isArray(step.steps) || step.steps.length === 0) {
+        errors.push(`Step '${String(id)}' (group) must define a non-empty 'steps' array.`);
+        break;
+      }
+
+      validateStepsShape(step.steps, errors, `${stepLabel}.steps`);
+      break;
+    }
     case 'match': {
       if (!isNonEmptyString(step.var)) {
         errors.push(`Step '${String(id)}' (match) must define a non-empty 'var'.`);
@@ -450,6 +466,11 @@ function validateStepSemantics(config: WizardConfig, errors: string[], warnings:
             `Confirm step '${step.id}' defaults to 'no' but does not abort when declined; it will auto-continue in non-interactive mode.`
           );
         }
+      }
+
+      if (step.type === 'group') {
+        validateSteps(step.steps, availableVars);
+        continue;
       }
 
       if (step.type === 'match') {

@@ -163,6 +163,10 @@ function collectNestedOperations(steps: WizardStep[]): LlmOperation[] {
         operations.push(...collectNestedOperations(step.default.steps));
       }
     }
+
+    if (step.type === 'group') {
+      operations.push(...collectNestedOperations(step.steps));
+    }
   }
 
   return operations;
@@ -185,6 +189,10 @@ function collectNestedSafety(steps: WizardStep[]): LlmSafety[] {
       if (step.default) {
         safety.push(...collectNestedSafety(step.default.steps));
       }
+    }
+
+    if (step.type === 'group') {
+      safety.push(...collectNestedSafety(step.steps));
     }
   }
 

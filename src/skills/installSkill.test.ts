@@ -31,6 +31,14 @@ describe('installWiizAuthorSkill', () => {
     const content = await fs.readFile(result.skillFile, 'utf8');
     expect(content).toContain('name: wiiz-yaml-author');
     expect(content).toContain('Generate .wiiz/wizard.yaml');
+    expect(content).toContain('Use `match` to branch into one nested path');
+    expect(content).toContain('Use `group` to bundle nested steps');
+    expect(content).toContain('With `overwrite: true`, `env.write` updates known keys');
+    expect(content).toContain('In non-interactive (`--values`) runs, `command.run` is skipped by default.');
+    expect(content).toContain('Do not reference variables that are collected only inside one `match` branch');
+    expect(content).toContain('Minimal `match` example');
+    expect(content).toContain('Minimal `group` example');
+    expect(content).not.toContain('Keep flow sequential (no branching).');
   });
 
   test('does not overwrite existing skill by default', async () => {

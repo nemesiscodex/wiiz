@@ -11,6 +11,7 @@ Instead of maintaining a setup document that drifts, you define onboarding once 
 - reuse existing `.env` values with safe previews
 - gate risky actions behind explicit confirmation
 - branch into different setup paths from one earlier choice
+- bundle related setup steps under one shared working directory
 - write files, append snippets, and generate env files
 - check required tools before continuing
 - optionally run setup commands with user consent

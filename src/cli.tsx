@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import React from 'react';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import {Box, Text, render} from 'ink';
 import Spinner from 'ink-spinner';
 import {WizardApp, type PromptResult} from './WizardApp.js';
@@ -263,6 +264,18 @@ function resolveMatchBranch(
   return undefined;
 }
 
+function resolveGroupCwd(
+  cwdTemplate: string | undefined,
+  context: Record<string, string>,
+  cwd: string
+): string {
+  if (!cwdTemplate) {
+    return cwd;
+  }
+
+  return path.resolve(cwd, interpolateTemplate(cwdTemplate, context));
+}
+
 async function runCommand(args: string[]): Promise<number> {
   const configPath = getFlagValue(args, '--config');
   const valuesPath = getFlagValue(args, '--values');
@@ -308,7 +321,10 @@ async function runCommand(args: string[]): Promise<number> {
   const operationResults: Awaited<ReturnType<typeof executeOperationStep>>[] = [];
   const cwd = process.cwd();
 
-  async function runSteps(steps: WizardStep[]): Promise<'completed' | 'cancelled' | 'stopped' | 'failed'> {
+  async function runSteps(
+    steps: WizardStep[],
+    activeCwd: string
+  ): Promise<'completed' | 'cancelled' | 'stopped' | 'failed'> {
     for (const step of steps) {
       if (!shouldRunWhen(step.when, context)) {
         console.log(`- \x1b[90m○\x1b[0m ${step.id}: skipped (when condition not met)`);
@@ -323,7 +339,17 @@ async function runCommand(args: string[]): Promise<number> {
         }
 
         console.log(`- \x1b[32m✓\x1b[0m ${step.id}: ${branch.description}`);
-        const nestedStatus = await runSteps(branch.steps);
+        const nestedStatus = await runSteps(branch.steps, activeCwd);
+        if (nestedStatus !== 'completed') {
+          return nestedStatus;
+        }
+        continue;
+      }
+
+      if (step.type === 'group') {
+        const groupCwd = resolveGroupCwd(step.cwd, context, activeCwd);
+        console.log(`- \x1b[32m✓\x1b[0m ${step.id}: entering group`);
+        const nestedStatus = await runSteps(step.steps, groupCwd);
         if (nestedStatus !== 'completed') {
           return nestedStatus;
         }
@@ -358,7 +384,7 @@ async function runCommand(args: string[]): Promise<number> {
           continue;
         }
 
-        const prefill = await loadEnvPrefillValue(step, cwd);
+        const prefill = await loadEnvPrefillValue(step, activeCwd);
         if (prefill) {
           const canKeep = getPromptValidationError(step, prefill.value) === undefined;
 
@@ -416,7 +442,7 @@ async function runCommand(args: string[]): Promise<number> {
           step.type !== 'ascii' &&
           step.type !== 'banner' &&
           !(step.type === 'command.run' && approved && !dryRun);
-        const execute = () => executeOperationStep(step, {context, dryRun, approved});
+        const execute = () => executeOperationStep(step, {context, dryRun, approved, cwd: activeCwd});
         if (!shouldSpin && step.type === 'command.run' && approved && !dryRun) {
           console.log(`\x1b[36m→ Running ${step.id}...\x1b[0m`);
         }
@@ -440,7 +466,7 @@ async function runCommand(args: string[]): Promise<number> {
     return 'completed';
   }
 
-  const runStatus = await runSteps(loaded.config.steps);
+  const runStatus = await runSteps(loaded.config.steps, cwd);
   if (runStatus === 'cancelled') {
     console.log('\nWizard cancelled.');
     return 0;

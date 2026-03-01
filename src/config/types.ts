@@ -23,6 +23,13 @@ export type MatchDefault = {
   steps: WizardStep[];
 };
 
+export type GroupStep = {
+  id: string;
+  type: 'group';
+  cwd?: string;
+  steps: WizardStep[];
+} & StepBase;
+
 export type InputStep = {
   id: string;
   type: 'input';
@@ -137,6 +144,7 @@ export type WizardStep =
   | DisplayStep
   | BannerStep
   | ConfirmStep
+  | GroupStep
   | MatchStep;
 
 export type WizardConfig = {

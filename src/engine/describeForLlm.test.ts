@@ -27,6 +27,20 @@ const config: WizardConfig = {
       ]
     },
     {
+      id: 'setup-group',
+      type: 'group',
+      cwd: 'scripts',
+      steps: [
+        {
+          id: 'write-grouped',
+          type: 'file.write',
+          path: 'nested.txt',
+          content: '{{NAME}}',
+          overwrite: true
+        }
+      ]
+    },
+    {
       id: 'branch',
       type: 'match',
       var: 'ENV',
@@ -59,8 +73,8 @@ describe('describeConfigForLlm', () => {
     expect(result.inputs.length).toBe(3);
     expect(result.inputs[0]?.envFile).toBe('.env');
     expect(result.inputs[0]?.sensitive).toBe(false);
-    expect(result.operations.length).toBe(2);
-    expect(result.safety.length).toBe(2);
+    expect(result.operations.length).toBe(3);
+    expect(result.safety.length).toBe(3);
     expect(result.exampleValues.NAME).toBe('<fill-me>');
     expect(result.exampleValues.TOKEN).toBe('<fill-me>');
   });

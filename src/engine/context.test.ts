@@ -54,6 +54,46 @@ describe('validateProvidedValues', () => {
     expect(result.errors.join('\n')).toContain("does not match regex");
     expect(result.errors.join('\n')).toContain("must be one of");
   });
+
+  test('skips prompts inside when-disabled groups', () => {
+    const groupedConfig: WizardConfig = {
+      version: 1,
+      name: 'grouped',
+      steps: [
+        {
+          id: 'env',
+          type: 'select',
+          message: 'Env',
+          var: 'NODE_ENV',
+          options: [
+            {label: 'dev', value: 'development'},
+            {label: 'prod', value: 'production'}
+          ]
+        },
+        {
+          id: 'prod-group',
+          type: 'group',
+          when: {var: 'NODE_ENV', equals: 'production'},
+          steps: [
+            {
+              id: 'prod-token',
+              type: 'input',
+              message: 'Token',
+              var: 'PROD_TOKEN'
+            }
+          ]
+        }
+      ]
+    };
+
+    const result = validateProvidedValues(groupedConfig, {
+      NODE_ENV: 'development'
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.context.NODE_ENV).toBe('development');
+    expect(result.context.PROD_TOKEN).toBeUndefined();
+  });
 });
 
 describe('collectInputDefinitions', () => {
@@ -64,5 +104,29 @@ describe('collectInputDefinitions', () => {
 
     expect(input?.sensitive).toBe(true);
     expect(select?.sensitive).toBe(true);
+  });
+
+  test('collects nested group prompts', () => {
+    const groupedConfig: WizardConfig = {
+      version: 1,
+      name: 'grouped',
+      steps: [
+        {
+          id: 'setup',
+          type: 'group',
+          steps: [
+            {
+              id: 'token',
+              type: 'input',
+              message: 'Token',
+              var: 'TOKEN'
+            }
+          ]
+        }
+      ]
+    };
+
+    const definitions = collectInputDefinitions(groupedConfig);
+    expect(definitions.map(definition => definition.var)).toContain('TOKEN');
   });
 });

@@ -338,6 +338,47 @@ describe('run command', () => {
     expect(targetContent).toBe('dev=development\n');
   });
 
+  test('runs grouped steps with inherited cwd', async () => {
+    const tempDir = await makeTempDir();
+    const configPath = path.join(tempDir, 'wizard.yaml');
+    const valuesPath = path.join(tempDir, 'values.json');
+    const nestedDir = path.join(tempDir, 'nested');
+    const targetFile = path.join(nestedDir, 'group.txt');
+
+    const config = [
+      'version: 1',
+      'name: Group flow',
+      'steps:',
+      '  - id: ask-name',
+      '    type: input',
+      '    message: Name',
+      '    var: NAME',
+      '  - id: grouped-setup',
+      '    type: group',
+      `    cwd: ${nestedDir}`,
+      '    steps:',
+      '      - id: write-group-file',
+      '        type: file.write',
+      '        path: group.txt',
+      '        content: "{{NAME}}\\n"',
+      '        overwrite: true'
+    ].join('\n');
+
+    await fs.mkdir(nestedDir, {recursive: true});
+    await fs.writeFile(configPath, config, 'utf8');
+    await fs.writeFile(valuesPath, JSON.stringify({NAME: 'julio'}, null, 2), 'utf8');
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath])
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('grouped-setup: entering group');
+
+    const targetContent = await fs.readFile(targetFile, 'utf8');
+    expect(targetContent).toBe('julio\n');
+  });
+
   test('reports missing values in non-interactive mode', async () => {
     const tempDir = await makeTempDir();
     const configPath = path.join(tempDir, 'wizard.yaml');
