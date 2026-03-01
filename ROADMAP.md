@@ -3,8 +3,8 @@
 ## Core Flow Control
 
 - [x] Add `when` condition support on every step to gate execution.
-- [ ] Add `match`/`switch` branching primitive for multi-path flows.
-- [ ] Add `group` primitive to bundle steps under shared `when`/`cwd`/`tags`.
+- [x] Add `match`/`switch` branching primitive for multi-path flows.
+- [x] Add `group` primitive to bundle steps under shared `when`/`cwd`/`tags`.
 - [ ] Add `tags` metadata on steps plus CLI filters (for example `--tags backend`).
 
 ## Variable and Context Primitives
