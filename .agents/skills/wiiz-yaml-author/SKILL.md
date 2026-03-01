@@ -16,12 +16,19 @@ Build onboarding config that works with wiiz.
 2. Define prompt variables first.
 - Add `input` steps for free-text values.
 - Add `select` steps for constrained values.
+- When a trustworthy default is known, set `input.default` instead of forcing users to retype it. Example: use `http://localhost:3000` for a common local dev URL when that matches the repo's normal setup.
+- When `input.default` is set, make the prompt wording clear that leaving the field empty will use that default.
 - For env-related prompts, set `envFile` (and optional `envKey`) to allow keep/replace from existing files.
 - Sensitivity defaults: prompts are sensitive by default. Set `sensitive: false` only for non-secret values where full preview is useful.
 - Keep identifiers stable: use uppercase variable names and kebab-case step ids.
 - Prefer required inputs unless a default is trustworthy.
+- Write prompt messages as actionable instructions, not labels. Each prompt should tell the user what value to enter and enough context to understand why it is needed.
+- If a value is not obvious, add nearby `note` or `display` guidance that explains where to find it, how to generate it, or what it affects.
 
 3. Define operation steps after prompts.
+- Use `wiiz help list` to discover supported primitives before choosing a step type.
+- If you are unsure about a primitive's fields, defaults, validation, or parameter combinations, run `wiiz help <primitive>` and follow that output exactly.
+- Do not invent primitive names or field shapes when `wiiz help` can answer the question.
 - Use `env.write` for `.env` generation.
 - `env.write` shape: define `path`, `entries` (`key` + string `value` template), and optional `overwrite`.
 - `env.write` fails on existing files unless `overwrite: true`.
@@ -76,6 +83,7 @@ When generating onboarding artifacts, produce these files:
 
 2. `.wiiz/values.example.json`
 - Map each prompt `var` to a representative sample value.
+- Reuse real defaults when they exist; otherwise use realistic placeholders.
 - Ensure select values match declared option `value` exactly.
 
 ## Quality Checks
@@ -92,7 +100,7 @@ Before finishing:
 
 If wiiz is available, run:
 
-- `onboard validate --config .wiiz/wizard.yaml`
-- `onboard llm --config .wiiz/wizard.yaml`
+- `wiiz validate --config .wiiz/wizard.yaml`
+- `wiiz llm --config .wiiz/wizard.yaml`
 
 If unavailable, still generate both files and explain unverified checks.

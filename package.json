@@ -3,6 +3,9 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "bin": {
+    "wiiz": "./src/cli.tsx"
+  },
   "scripts": {
     "start": "bun src/cli.tsx run",
     "cli": "bun src/cli.tsx",

@@ -37,6 +37,11 @@ describe('installWiizAuthorSkill', () => {
     expect(content).toContain('run `wiiz help <primitive>`');
     expect(content).toContain('With `overwrite: true`, `env.write` updates known keys');
     expect(content).toContain('In non-interactive (`--values`) runs, `command.run` is skipped by default.');
+    expect(content).toContain('When a trustworthy default is known, set `input.default`');
+    expect(content).toContain('leaving the field empty will use that default');
+    expect(content).toContain('Write prompt messages as actionable instructions, not labels.');
+    expect(content).toContain('add nearby `note` or `display` guidance');
+    expect(content).toContain('Reuse real defaults when they exist; otherwise use realistic placeholders.');
     expect(content).toContain('Do not reference variables that are collected only inside one `match` branch');
     expect(content).toContain('Minimal `match` example');
     expect(content).toContain('Minimal `group` example');

@@ -1,10 +1,24 @@
 # wiiz
 
-`wiiz` turns repository setup into a repeatable CLI flow.
+**Getting started section—as an interactive wizard.** Define the steps once; run `wiiz run` whenever you or someone new needs to get the project running.
 
-Instead of maintaining a setup document that drifts, you define onboarding once in `.wiiz/wizard.yaml` and run it for humans, scripts, and LLM-driven tooling.
+---
 
-## What You Can Do
+## Why wiiz?
+
+Normally you read the README and follow the Getting Started guide step by step. You need these env vars, that API key, these commands installed—prerequisites. Maybe you're setting up for production vs development, so different steps apply.
+
+**Why not streamline that?** wiiz turns the Getting Started section into an interactive wizard. You describe it once in `.wiiz/wizard.yaml`: what env vars to collect, which tools must be installed, what commands to run. Then anyone can clone the repo and quickly get started:
+
+```bash
+npx wiiz run
+```
+
+The wizard can guide them through everything—no flipping back to the README, no copy-paste from Slack. One place for onboarding, one command to run it. For you when you spin up a new machine, for new hires, for open source projects.
+
+---
+
+## What It Can Do
 
 - collect required setup values with prompts
 - offer constrained choices for environment or runtime options
@@ -15,7 +29,6 @@ Instead of maintaining a setup document that drifts, you define onboarding once 
 - write files, append snippets, and generate env files
 - check required tools before continuing
 - optionally run setup commands with user consent
-- export a stable machine-readable description with `wiiz llm`
 - inspect supported primitives with `wiiz help list` and `wiiz help <primitive>`
 
 ## Quick Start
@@ -23,41 +36,35 @@ Instead of maintaining a setup document that drifts, you define onboarding once 
 Run the interactive flow:
 
 ```bash
-wiiz run
+npx wiiz@latest run
+```
+or with bunx:
+```bash
+bunx wiiz@latest run
 ```
 
-Run the same onboarding non-interactively:
+If you do not have a config yet, `wiiz` exits cleanly and tells you what to do next. You can also install the built-in authoring skill, and ask your favorite LLM to generate a config for you:
 
 ```bash
-wiiz run --values .wiiz/values.example.json
+npx wiiz skill
 ```
+
+That installs `wiiz-yaml-author` at `.agents/skills/wiiz-yaml-author/SKILL.md` so an LLM/agent can generate `.wiiz/wizard.yaml` and `.wiiz/values.example.json`.
 
 Validate a config:
 
 ```bash
-wiiz validate
-```
-
-Generate a stable JSON description for tools:
-
-```bash
-wiiz llm
+npx wiiz validate
 ```
 
 Browse the primitive reference:
 
 ```bash
-wiiz help list
-wiiz help env.write
+npx wiiz help list
+npx wiiz help env.write
 ```
 
-If you do not have a config yet, `wiiz` exits cleanly and tells you what to do next. You can also install the built-in authoring skill:
 
-```bash
-wiiz skill
-```
-
-That installs `wiiz-yaml-author` at `.agents/skills/wiiz-yaml-author/SKILL.md` so an LLM can generate `.wiiz/wizard.yaml` and `.wiiz/values.example.json`.
 
 ## Simple Example
 
@@ -120,10 +127,10 @@ Default config path: `.wiiz/wizard.yaml`
 
 ## Documentation
 
-- [Config Reference](/Users/julio/personal/repo-onboard/docs/config-reference.md)
-- [Examples](/Users/julio/personal/repo-onboard/docs/examples.md)
-- [LLM Mode](/Users/julio/personal/repo-onboard/docs/llm-mode.md)
-- [Development](/Users/julio/personal/repo-onboard/docs/development.md)
+- [Config Reference](docs/config-reference.md)
+- [Examples](docs/examples.md)
+- [LLM Mode](docs/llm-mode.md)
+- [Development](docs/development.md)
 
 ## Contributing
 

@@ -34,6 +34,28 @@ export function formatPromptInputValue(
   return '•'.repeat(inputValue.length);
 }
 
+export function formatInputDefaultHint(defaultValue?: string): string | undefined {
+  if (defaultValue === undefined) {
+    return undefined;
+  }
+
+  if (defaultValue.length === 0) {
+    return 'Default: empty value (press Enter on an empty field to use it)';
+  }
+
+  return `Default: ${defaultValue} (press Enter on an empty field to use it)`;
+}
+
+export function formatPromptControls(step: PromptStep): string {
+  if (step.type === 'select') {
+    return '↑/↓: move • Enter: confirm • q/Esc: cancel';
+  }
+
+  return step.default === undefined
+    ? 'Type: edit • Enter: confirm • q/Esc: cancel'
+    : 'Type: edit • Enter: confirm (empty uses default) • q/Esc: cancel';
+}
+
 function getDisplayStepId(stepId: string): string {
   const baseId = stepId.split('__')[0] ?? stepId;
   return `[${baseId}]`;
@@ -74,6 +96,7 @@ export function WizardApp({step, onFinish}: WizardAppProps) {
   }, [step]);
   const renderedInputValue =
     step.type === 'input' ? formatPromptInputValue(step, inputValue) : inputValue;
+  const inputDefaultHint = step.type === 'input' ? formatInputDefaultHint(step.default) : undefined;
 
   useInput((input, key) => {
     if (input === 'q' || key.escape) {
@@ -178,17 +201,14 @@ export function WizardApp({step, onFinish}: WizardAppProps) {
           </Text>
           <Text dimColor>Variable: {step.var}</Text>
           <Text dimColor>Required: {step.required ?? true ? 'yes' : 'no'}</Text>
+          {inputDefaultHint ? <Text dimColor>{inputDefaultHint}</Text> : null}
           {step.validateRegex ? <Text dimColor>Regex: {step.validateRegex}</Text> : null}
         </Box>
       )}
 
       <Box height={1} />
       {errorMessage ? <Text color="red">! {errorMessage}</Text> : null}
-      <Text dimColor>
-        {step.type === 'select'
-          ? '↑/↓: move • Enter: confirm • q/Esc: cancel'
-          : 'Type: edit • Enter: confirm • q/Esc: cancel'}
-      </Text>
+      <Text dimColor>{formatPromptControls(step)}</Text>
     </Box>
   );
 }
