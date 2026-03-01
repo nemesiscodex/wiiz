@@ -33,6 +33,8 @@ describe('installWiizAuthorSkill', () => {
     expect(content).toContain('Generate .wiiz/wizard.yaml');
     expect(content).toContain('Use `match` to branch into one nested path');
     expect(content).toContain('Use `group` to bundle nested steps');
+    expect(content).toContain('Use `wiiz help list` to discover supported primitives');
+    expect(content).toContain('run `wiiz help <primitive>`');
     expect(content).toContain('With `overwrite: true`, `env.write` updates known keys');
     expect(content).toContain('In non-interactive (`--values`) runs, `command.run` is skipped by default.');
     expect(content).toContain('Do not reference variables that are collected only inside one `match` branch');
@@ -65,5 +67,6 @@ describe('installWiizAuthorSkill', () => {
 
     const content = await fs.readFile(first.skillFile, 'utf8');
     expect(content).toContain('wiiz YAML Author');
+    expect(content).toContain('`wiiz validate --config .wiiz/wizard.yaml`');
   });
 });

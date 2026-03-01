@@ -4,6 +4,8 @@
 
 Each config defines ordered `steps` that collect values, show guidance, and perform file or command operations.
 
+For the exact CLI reference for any primitive, run `wiiz help <primitive>`. To browse all primitives, run `wiiz help list`.
+
 ## Prompt Steps
 
 ### `input`

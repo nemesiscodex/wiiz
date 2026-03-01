@@ -6,6 +6,11 @@ import {Box, Text, render} from 'ink';
 import Spinner from 'ink-spinner';
 import {WizardApp, type PromptResult} from './WizardApp.js';
 import {loadConfig} from './config/loadConfig.js';
+import {
+  getPrimitiveReference,
+  listPrimitiveCategories,
+  type PrimitiveFieldReference
+} from './config/primitiveReference.js';
 import {assertValidConfig, isPromptStep, validateConfigShape} from './config/validateConfig.js';
 import type {CommandRunStep, ConfirmStep, MatchCase, MatchStep, PromptStep, SelectStep, WizardStep} from './config/types.js';
 import {describeConfigForLlm} from './engine/describeForLlm.js';
@@ -16,10 +21,116 @@ import {interpolateTemplate} from './engine/interpolate.js';
 import {shouldRunWhen} from './engine/when.js';
 import {installWiizAuthorSkill} from './skills/installSkill.js';
 
-function printUsage(): void {
-  console.log(
-    `wiiz\n\nUsage:\n  onboard run [--config <path>] [--dry-run] [--values <file.json>]\n  onboard validate [--config <path>]\n  onboard llm [--config <path>]\n  onboard skill [--force]`
-  );
+function formatField(field: PrimitiveFieldReference): string {
+  return [
+    `- ${field.name} (${field.type}, ${field.required ? 'required' : 'optional'})`,
+    `  Default: ${field.defaultDescription}`,
+    `  ${field.description}`
+  ].join('\n');
+}
+
+function renderGeneralHelp(): string {
+  return [
+    'wiiz',
+    '',
+    'Repeatable repository onboarding from `.wiiz/wizard.yaml`.',
+    '',
+    'Usage:',
+    '  wiiz help',
+    '  wiiz help list',
+    '  wiiz help <primitive>',
+    '  wiiz run [--config <path>] [--dry-run] [--values <file.json>]',
+    '  wiiz validate [--config <path>]',
+    '  wiiz llm [--config <path>]',
+    '  wiiz skill [--force]',
+    '',
+    'Top-level commands:',
+    '  help      Show CLI help, primitive lists, or primitive details.',
+    '  run       Execute the onboarding flow.',
+    '  validate  Validate `.wiiz/wizard.yaml` without running it.',
+    '  llm       Print a machine-readable description of the loaded config.',
+    '  skill     Install the built-in `wiiz-yaml-author` skill.',
+    '',
+    'Primitive reference:',
+    '  wiiz help list        List all primitives by category.',
+    '  wiiz help <primitive> Show exact fields, defaults, and usage for one primitive.'
+  ].join('\n');
+}
+
+function renderPrimitiveListHelp(): string {
+  const lines = ['Primitive Reference', '', 'Run `wiiz help <primitive>` for detailed usage.'];
+
+  for (const group of listPrimitiveCategories()) {
+    if (group.entries.length === 0) {
+      continue;
+    }
+
+    lines.push('', `${group.category}:`);
+    for (const entry of group.entries) {
+      lines.push(`  ${entry.name}  ${entry.summary}`);
+    }
+  }
+
+  lines.push('', 'Details: wiiz help <primitive>');
+  return lines.join('\n');
+}
+
+function renderPrimitiveDetailHelp(name: string): string | undefined {
+  const entry = getPrimitiveReference(name);
+  if (!entry) {
+    return undefined;
+  }
+
+  const requiredFields = entry.fields.filter(field => field.required);
+  const optionalFields = entry.fields.filter(field => !field.required);
+
+  const lines = [
+    `Primitive: ${entry.name}`,
+    '',
+    `Purpose: ${entry.purpose}`,
+    '',
+    'Required fields:'
+  ];
+
+  if (requiredFields.length === 0) {
+    lines.push('- None.');
+  } else {
+    lines.push(...requiredFields.map(formatField));
+  }
+
+  lines.push('', 'Optional fields:');
+  if (optionalFields.length === 0) {
+    lines.push('- None.');
+  } else {
+    lines.push(...optionalFields.map(formatField));
+  }
+
+  lines.push('', 'Constraints and validation rules:');
+  lines.push(...entry.constraints.map(rule => `- ${rule}`));
+
+  lines.push('', 'Runtime behavior and defaults:');
+  lines.push(...entry.behaviorNotes.map(note => `- ${note}`));
+
+  lines.push('', '`when` support:');
+  lines.push(`- ${entry.whenSupport}`);
+
+  lines.push('', 'Interpolation notes:');
+  lines.push(...entry.interpolationNotes.map(note => `- ${note}`));
+
+  lines.push('', 'Minimal YAML example:', '```yaml', entry.exampleYaml, '```');
+
+  lines.push('', 'Related primitives:');
+  lines.push(`- ${entry.relatedPrimitives.join(', ')}`);
+
+  return lines.join('\n');
+}
+
+function printGeneralHelp(): void {
+  console.log(renderGeneralHelp());
+}
+
+function printPrimitiveListHelp(): void {
+  console.log(renderPrimitiveListHelp());
 }
 
 function getFlagValue(args: string[], flag: string): string | undefined {
@@ -113,7 +224,7 @@ function printValidationMessages(prefix: string, messages: string[]): void {
 function printMissingConfigMessage(): void {
   console.log('No onboarding config found yet.');
   console.log('Create .wiiz/wizard.yaml to continue.');
-  console.log('Tip: run `onboard skill` to install a skill that can generate this file.');
+  console.log('Tip: run `wiiz skill` to install a skill that can generate this file.');
 }
 
 async function loadConfigWithHelp(configPath: string | undefined): Promise<
@@ -547,14 +658,43 @@ async function skillCommand(args: string[]): Promise<number> {
   return 0;
 }
 
+async function helpCommand(args: string[]): Promise<number> {
+  const topic = args[0];
+
+  if (!topic) {
+    printGeneralHelp();
+    return 0;
+  }
+
+  if (topic === 'list') {
+    printPrimitiveListHelp();
+    return 0;
+  }
+
+  const detail = renderPrimitiveDetailHelp(topic);
+  if (detail) {
+    console.log(detail);
+    return 0;
+  }
+
+  console.log(`Unknown help topic '${topic}'.`);
+  console.log('Run `wiiz help` for CLI usage.');
+  console.log('Run `wiiz help list` to see valid primitive names.');
+  return 0;
+}
+
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
   try {
     const command = argv[0];
     const args = argv.slice(1);
 
     if (!command || command === '--help' || command === '-h') {
-      printUsage();
+      printGeneralHelp();
       return 0;
+    }
+
+    if (command === 'help') {
+      return helpCommand(args);
     }
 
     if (command === 'run') {
@@ -574,7 +714,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     }
 
     console.log(`Unknown command '${command}'.`);
-    printUsage();
+    printGeneralHelp();
     return 0;
   } catch (error) {
     console.error(`Unexpected error: ${String(error)}`);

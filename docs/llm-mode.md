@@ -3,14 +3,14 @@
 Run:
 
 ```bash
-bun run onboard llm
+wiiz llm
 ```
 
 This prints a stable JSON description of the onboarding config so LLMs, scripts, and automation tools can inspect the flow without executing it.
 
 ## Output Keys
 
-`onboard llm` includes these top-level keys:
+`wiiz llm` includes these top-level keys:
 
 - `version`
 - `name`
@@ -34,7 +34,7 @@ This prints a stable JSON description of the onboarding config so LLMs, scripts,
 Use `exampleValues` as the starting template for a values file:
 
 ```bash
-bun run onboard run --values .wiiz/values.example.json
+wiiz run --values .wiiz/values.example.json
 ```
 
 In non-interactive mode:

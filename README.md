@@ -15,38 +15,46 @@ Instead of maintaining a setup document that drifts, you define onboarding once 
 - write files, append snippets, and generate env files
 - check required tools before continuing
 - optionally run setup commands with user consent
-- export a stable machine-readable description with `onboard llm`
+- export a stable machine-readable description with `wiiz llm`
+- inspect supported primitives with `wiiz help list` and `wiiz help <primitive>`
 
 ## Quick Start
 
 Run the interactive flow:
 
 ```bash
-bun run onboard run
+wiiz run
 ```
 
 Run the same onboarding non-interactively:
 
 ```bash
-bun run onboard run --values .wiiz/values.example.json
+wiiz run --values .wiiz/values.example.json
 ```
 
 Validate a config:
 
 ```bash
-bun run onboard validate
+wiiz validate
 ```
 
 Generate a stable JSON description for tools:
 
 ```bash
-bun run onboard llm
+wiiz llm
+```
+
+Browse the primitive reference:
+
+```bash
+wiiz help list
+wiiz help env.write
 ```
 
 If you do not have a config yet, `wiiz` exits cleanly and tells you what to do next. You can also install the built-in authoring skill:
 
 ```bash
-bun run onboard skill
+wiiz skill
 ```
 
 That installs `wiiz-yaml-author` at `.agents/skills/wiiz-yaml-author/SKILL.md` so an LLM can generate `.wiiz/wizard.yaml` and `.wiiz/values.example.json`.
@@ -102,10 +110,13 @@ steps:
 
 Default config path: `.wiiz/wizard.yaml`
 
-- `bun run onboard run [--config <path>] [--dry-run] [--values <file.json>]`
-- `bun run onboard validate [--config <path>]`
-- `bun run onboard llm [--config <path>]`
-- `bun run onboard skill [--force]`
+- `wiiz help`
+- `wiiz help list`
+- `wiiz help <primitive>`
+- `wiiz run [--config <path>] [--dry-run] [--values <file.json>]`
+- `wiiz validate [--config <path>]`
+- `wiiz llm [--config <path>]`
+- `wiiz skill [--force]`
 
 ## Documentation
 

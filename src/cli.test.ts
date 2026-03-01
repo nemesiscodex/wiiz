@@ -91,10 +91,11 @@ function buildValidConfig(targetDir: string): string {
 }
 
 describe('main command routing', () => {
-  test('prints usage for help', async () => {
+  test('prints generic help for --help', async () => {
     const result = await captureOutput(() => main(['--help']));
     expect(result.code).toBe(0);
     expect(result.logs.join('\n')).toContain('Usage:');
+    expect(result.logs.join('\n')).toContain('wiiz help list');
   });
 
   test('prints helpful message for unknown command', async () => {
@@ -122,6 +123,57 @@ describe('main command routing', () => {
     const result = await captureOutput(() => main(['run', '--config', missingPath]));
     expect(result.code).toBe(0);
     expect(result.logs.join('\n')).toContain('No onboarding config found yet.');
+  });
+});
+
+describe('help command', () => {
+  test('prints generic CLI help', async () => {
+    const result = await captureOutput(() => main(['help']));
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('wiiz help list');
+    expect(result.logs.join('\n')).toContain('wiiz help <primitive>');
+  });
+
+  test('prints categorized primitive list', async () => {
+    const result = await captureOutput(() => main(['help', 'list']));
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('Prompt:');
+    expect(result.logs.join('\n')).toContain('command.run');
+    expect(result.logs.join('\n')).toContain('Details: wiiz help <primitive>');
+  });
+
+  test('prints detailed primitive help for command.run', async () => {
+    const result = await captureOutput(() => main(['help', 'command.run']));
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('Primitive: command.run');
+    expect(result.logs.join('\n')).toContain('consentMessage');
+    expect(result.logs.join('\n')).toContain('Non-interactive mode skips `command.run` by default.');
+  });
+
+  test('prints detailed primitive help for confirm', async () => {
+    const result = await captureOutput(() => main(['help', 'confirm']));
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('abortOnDecline');
+    expect(result.logs.join('\n')).toContain('omitted `default` behaves as `no`');
+  });
+
+  test('prints detailed primitive help for banner', async () => {
+    const result = await captureOutput(() => main(['help', 'banner']));
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('Define exactly one of `content` or `path`.');
+  });
+
+  test('handles unknown help topics gracefully', async () => {
+    const result = await captureOutput(() => main(['help', 'unknown']));
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain("Unknown help topic 'unknown'.");
+    expect(result.logs.join('\n')).toContain('wiiz help list');
   });
 });
 
