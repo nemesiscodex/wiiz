@@ -196,6 +196,35 @@ describe('run command', () => {
     expect(exists).toBe(false);
   });
 
+  test('supports the checked-in wizard match flow in dry-run mode', async () => {
+    const tempDir = await makeTempDir();
+    const valuesPath = path.join(tempDir, 'values.json');
+    const configPath = path.resolve('.wiiz/wizard.yaml');
+
+    await fs.writeFile(
+      valuesPath,
+      JSON.stringify(
+        {
+          ENV: 'development',
+          NAME: 'julio',
+          EMAIL: 'julio@example.com'
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath, '--dry-run'])
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('run-example-branch: no branch matched RUN_EXAMPLES=no');
+    expect(result.logs.join('\n')).not.toContain('example-write-file');
+    expect(result.logs.join('\n')).toContain('Run complete (dry-run).');
+  });
+
   test('applies primitives with values file', async () => {
     const tempDir = await makeTempDir();
     const configPath = path.join(tempDir, 'wizard.yaml');
@@ -250,6 +279,63 @@ describe('run command', () => {
 
     const envContent = await fs.readFile(envFile, 'utf8');
     expect(envContent).toBe('# existing config\nPORT=3000\nNAME="julio cesar"\nNODE_ENV=production\n');
+  });
+
+  test('runs only the selected match branch in non-interactive mode', async () => {
+    const tempDir = await makeTempDir();
+    const configPath = path.join(tempDir, 'wizard.yaml');
+    const valuesPath = path.join(tempDir, 'values.json');
+    const targetFile = path.join(tempDir, 'branch.txt');
+
+    const config = [
+      'version: 1',
+      'name: Match flow',
+      'steps:',
+      '  - id: ask-env',
+      '    type: select',
+      '    message: Env',
+      '    var: ENV',
+      '    options:',
+      '      - label: Development',
+      '        value: development',
+      '      - label: Production',
+      '        value: production',
+      '  - id: choose-path',
+      '    type: match',
+      '    var: ENV',
+      '    cases:',
+      '      - equals: production',
+      '        steps:',
+      '          - id: ask-token',
+      '            type: input',
+      '            message: Token',
+      '            var: TOKEN',
+      '          - id: write-prod',
+      '            type: file.write',
+      `            path: ${targetFile}`,
+      '            content: "prod={{TOKEN}}\\n"',
+      '            overwrite: true',
+      '      - equals: development',
+      '        steps:',
+      '          - id: write-dev',
+      '            type: file.write',
+      `            path: ${targetFile}`,
+      '            content: "dev={{ENV}}\\n"',
+      '            overwrite: true'
+    ].join('\n');
+
+    await fs.writeFile(configPath, config, 'utf8');
+    await fs.writeFile(valuesPath, JSON.stringify({ENV: 'development'}, null, 2), 'utf8');
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath])
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.logs.join('\n')).toContain('choose-path: matched ENV=development');
+
+    const targetContent = await fs.readFile(targetFile, 'utf8');
+    expect(targetContent).toBe('dev=development\n');
   });
 
   test('reports missing values in non-interactive mode', async () => {

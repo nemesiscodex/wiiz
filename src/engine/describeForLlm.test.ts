@@ -25,6 +25,26 @@ const config: WizardConfig = {
         {key: 'NAME', value: '{{NAME}}'},
         {key: 'ENV', value: '{{ENV}}'}
       ]
+    },
+    {
+      id: 'branch',
+      type: 'match',
+      var: 'ENV',
+      cases: [
+        {
+          equals: 'production',
+          steps: [
+            {id: 'ask-token', type: 'input', message: 'Token?', var: 'TOKEN'},
+            {
+              id: 'write-token',
+              type: 'file.write',
+              path: '.token',
+              content: '{{TOKEN}}',
+              overwrite: true
+            }
+          ]
+        }
+      ]
     }
   ]
 };
@@ -36,11 +56,12 @@ describe('describeConfigForLlm', () => {
     expect(result.version).toBe(1);
     expect(result.name).toBe('spec');
     expect(result.configPath).toBe('/tmp/wizard.yaml');
-    expect(result.inputs.length).toBe(2);
+    expect(result.inputs.length).toBe(3);
     expect(result.inputs[0]?.envFile).toBe('.env');
     expect(result.inputs[0]?.sensitive).toBe(false);
-    expect(result.operations.length).toBe(1);
-    expect(result.safety.length).toBe(1);
+    expect(result.operations.length).toBe(2);
+    expect(result.safety.length).toBe(2);
     expect(result.exampleValues.NAME).toBe('<fill-me>');
+    expect(result.exampleValues.TOKEN).toBe('<fill-me>');
   });
 });

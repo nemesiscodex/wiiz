@@ -145,10 +145,56 @@ function toLlmInput(definition: InputDefinition) {
   };
 }
 
+function collectNestedOperations(steps: WizardStep[]): LlmOperation[] {
+  const operations: LlmOperation[] = [];
+
+  for (const step of steps) {
+    const operation = toOperation(step);
+    if (operation) {
+      operations.push(operation);
+    }
+
+    if (step.type === 'match') {
+      for (const matchCase of step.cases) {
+        operations.push(...collectNestedOperations(matchCase.steps));
+      }
+
+      if (step.default) {
+        operations.push(...collectNestedOperations(step.default.steps));
+      }
+    }
+  }
+
+  return operations;
+}
+
+function collectNestedSafety(steps: WizardStep[]): LlmSafety[] {
+  const safety: LlmSafety[] = [];
+
+  for (const step of steps) {
+    const entry = toSafety(step);
+    if (entry) {
+      safety.push(entry);
+    }
+
+    if (step.type === 'match') {
+      for (const matchCase of step.cases) {
+        safety.push(...collectNestedSafety(matchCase.steps));
+      }
+
+      if (step.default) {
+        safety.push(...collectNestedSafety(step.default.steps));
+      }
+    }
+  }
+
+  return safety;
+}
+
 export function describeConfigForLlm(config: WizardConfig, resolvedPath: string) {
   const inputs = collectInputDefinitions(config);
-  const operations = config.steps.map(toOperation).filter(Boolean);
-  const safety = config.steps.map(toSafety).filter(Boolean);
+  const operations = collectNestedOperations(config.steps);
+  const safety = collectNestedSafety(config.steps);
 
   const requirements = inputs.filter(input => input.required && !input.default).map(input => input.var);
 

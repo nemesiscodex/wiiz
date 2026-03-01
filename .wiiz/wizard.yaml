@@ -41,49 +41,40 @@ steps:
     default: "no"
     abortOnDecline: false
 
-  - id: example-banner
-    type: banner
-    when:
-      var: RUN_EXAMPLES
-      equals: yes
-    content: |
-      ============================
-        OPTIONAL EXAMPLE STEPS
-      ============================
+  - id: run-example-branch
+    type: match
+    var: RUN_EXAMPLES
+    cases:
+      - equals: yes
+        steps:
+          - id: example-banner
+            type: banner
+            content: |
+              ============================
+                OPTIONAL EXAMPLE STEPS
+              ============================
 
-  - id: example-display
-    type: display
-    when:
-      var: RUN_EXAMPLES
-      equals: yes
-    message: Preparing example outputs for {{NAME}} in {{ENV}} mode.
+          - id: example-display
+            type: display
+            message: Preparing example outputs for {{NAME}} in {{ENV}} mode.
 
-  - id: example-note
-    type: note
-    when:
-      var: RUN_EXAMPLES
-      equals: yes
-    message: These example steps write files under .wiiz/examples so each primitive has a concrete reference.
+          - id: example-note
+            type: note
+            message: These example steps write files under .wiiz/examples so each primitive has a concrete reference.
 
-  - id: example-write-file
-    type: file.write
-    when:
-      var: RUN_EXAMPLES
-      equals: yes
-    path: .wiiz/examples/profile.txt
-    overwrite: true
-    content: |
-      name={{NAME}}
-      email={{EMAIL}}
-      env={{ENV}}
+          - id: example-write-file
+            type: file.write
+            path: .wiiz/examples/profile.txt
+            overwrite: true
+            content: |
+              name={{NAME}}
+              email={{EMAIL}}
+              env={{ENV}}
 
-  - id: example-append-file
-    type: file.append
-    when:
-      var: RUN_EXAMPLES
-      equals: yes
-    path: .wiiz/examples/activity.log
-    content: "example-run name={{NAME}} env={{ENV}}\n"
+          - id: example-append-file
+            type: file.append
+            path: .wiiz/examples/activity.log
+            content: "example-run name={{NAME}} env={{ENV}}\n"
 
   - id: check-git
     type: command.check

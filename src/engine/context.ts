@@ -1,39 +1,52 @@
-import type {InputDefinition, InputStep, PromptStep, SelectStep, WizardConfig} from '../config/types.js';
+import type {InputDefinition, InputStep, PromptStep, SelectStep, WizardConfig, WizardStep} from '../config/types.js';
 
 export function collectInputDefinitions(config: WizardConfig): InputDefinition[] {
   const definitions: InputDefinition[] = [];
 
-  for (const step of config.steps) {
-    if (step.type === 'input') {
-      definitions.push({
-        var: step.var,
-        sourceStepId: step.id,
-        inputType: 'input',
-        message: step.message,
-        envFile: step.envFile,
-        envKey: step.envKey,
-        sensitive: step.sensitive ?? true,
-        required: step.required ?? true,
-        default: step.default,
-        validateRegex: step.validateRegex
-      });
-    }
+  function collectFromSteps(steps: WizardStep[]): void {
+    for (const step of steps) {
+      if (step.type === 'input') {
+        definitions.push({
+          var: step.var,
+          sourceStepId: step.id,
+          inputType: 'input',
+          message: step.message,
+          envFile: step.envFile,
+          envKey: step.envKey,
+          sensitive: step.sensitive ?? true,
+          required: step.required ?? true,
+          default: step.default,
+          validateRegex: step.validateRegex
+        });
+      }
 
-    if (step.type === 'select') {
-      definitions.push({
-        var: step.var,
-        sourceStepId: step.id,
-        inputType: 'select',
-        message: step.message,
-        envFile: step.envFile,
-        envKey: step.envKey,
-        sensitive: step.sensitive ?? true,
-        required: true,
-        options: step.options
-      });
+      if (step.type === 'select') {
+        definitions.push({
+          var: step.var,
+          sourceStepId: step.id,
+          inputType: 'select',
+          message: step.message,
+          envFile: step.envFile,
+          envKey: step.envKey,
+          sensitive: step.sensitive ?? true,
+          required: true,
+          options: step.options
+        });
+      }
+
+      if (step.type === 'match') {
+        for (const matchCase of step.cases) {
+          collectFromSteps(matchCase.steps);
+        }
+
+        if (step.default) {
+          collectFromSteps(step.default.steps);
+        }
+      }
     }
   }
 
+  collectFromSteps(config.steps);
   return definitions;
 }
 
@@ -85,54 +98,80 @@ export function validateProvidedValues(
   const context: Record<string, string> = {};
   const errors: string[] = [];
 
-  for (const step of config.steps) {
-    if (step.type !== 'input' && step.type !== 'select') {
-      continue;
-    }
+  function validateSteps(steps: WizardStep[]): void {
+    for (const step of steps) {
+      if (step.type === 'input' || step.type === 'select') {
+        const provided = providedValues[step.var];
 
-    const provided = providedValues[step.var];
+        if (provided !== undefined && typeof provided !== 'string') {
+          errors.push(`Provided value '${step.var}' must be a string.`);
+          continue;
+        }
 
-    if (provided !== undefined && typeof provided !== 'string') {
-      errors.push(`Provided value '${step.var}' must be a string.`);
-      continue;
-    }
+        const rawValue =
+          typeof provided === 'string'
+            ? provided
+            : step.type === 'input' && step.default !== undefined
+              ? step.default
+              : undefined;
 
-    const rawValue =
-      typeof provided === 'string'
-        ? provided
-        : step.type === 'input' && step.default !== undefined
-          ? step.default
-          : undefined;
+        if (rawValue === undefined) {
+          if (step.type === 'input' && (step.required ?? true) === false) {
+            context[step.var] = '';
+            continue;
+          }
 
-    if (rawValue === undefined) {
-      if (step.type === 'input' && (step.required ?? true) === false) {
-        context[step.var] = '';
+          errors.push(`Missing required value for '${step.var}' from step '${step.id}'.`);
+          continue;
+        }
+
+        if (step.type === 'input') {
+          const validationError = validateInputStepValue(step, rawValue);
+          if (validationError) {
+            errors.push(validationError);
+            continue;
+          }
+        }
+
+        if (step.type === 'select') {
+          const validationError = validateSelectStepValue(step, rawValue);
+          if (validationError) {
+            errors.push(validationError);
+            continue;
+          }
+        }
+
+        context[step.var] = rawValue;
         continue;
       }
 
-      errors.push(`Missing required value for '${step.var}' from step '${step.id}'.`);
-      continue;
-    }
-
-    if (step.type === 'input') {
-      const validationError = validateInputStepValue(step, rawValue);
-      if (validationError) {
-        errors.push(validationError);
+      if (step.type !== 'match') {
         continue;
       }
-    }
 
-    if (step.type === 'select') {
-      const validationError = validateSelectStepValue(step, rawValue);
-      if (validationError) {
-        errors.push(validationError);
+      const selectedValue = context[step.var];
+      if (selectedValue === undefined) {
         continue;
       }
-    }
 
-    context[step.var] = rawValue;
+      const matchCase = step.cases.find(candidate =>
+        candidate.equals !== undefined
+          ? candidate.equals === selectedValue
+          : (candidate.oneOf ?? []).includes(selectedValue)
+      );
+
+      if (matchCase) {
+        validateSteps(matchCase.steps);
+        continue;
+      }
+
+      if (step.default) {
+        validateSteps(step.default.steps);
+      }
+    }
   }
 
+  validateSteps(config.steps);
   return {context, errors};
 }
 

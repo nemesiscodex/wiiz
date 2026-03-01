@@ -13,6 +13,16 @@ export type StepBase = {
   when?: StepWhen;
 };
 
+export type MatchCase = {
+  equals?: string;
+  oneOf?: string[];
+  steps: WizardStep[];
+};
+
+export type MatchDefault = {
+  steps: WizardStep[];
+};
+
 export type InputStep = {
   id: string;
   type: 'input';
@@ -108,6 +118,14 @@ export type ConfirmStep = {
   abortOnDecline?: boolean;
 } & StepBase;
 
+export type MatchStep = {
+  id: string;
+  type: 'match';
+  var: string;
+  cases: MatchCase[];
+  default?: MatchDefault;
+} & StepBase;
+
 export type WizardStep =
   | InputStep
   | SelectStep
@@ -118,7 +136,8 @@ export type WizardStep =
   | CommandCheckStep
   | DisplayStep
   | BannerStep
-  | ConfirmStep;
+  | ConfirmStep
+  | MatchStep;
 
 export type WizardConfig = {
   version: 1;

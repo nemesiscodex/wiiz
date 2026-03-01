@@ -1,11 +1,11 @@
 ---
-name: repo-onboard-yaml-author
-description: Generate .onboard/wizard.yaml and .onboard/values.example.json for repository onboarding with repo-onboard. Use when a user wants to create or update onboarding wizard config from an existing repository's setup requirements, environment variables, and developer workflows.
+name: wiiz-yaml-author
+description: Generate .wiiz/wizard.yaml and .wiiz/values.example.json for repository onboarding with wiiz. Use when a user wants to create or update onboarding wizard config from an existing repository's setup requirements, environment variables, and developer workflows.
 ---
 
-# Repo Onboard YAML Author
+# wiiz YAML Author
 
-Build onboarding config that works with repo-onboard CLI.
+Build onboarding config that works with wiiz.
 
 ## Workflow
 
@@ -43,20 +43,20 @@ Build onboarding config that works with repo-onboard CLI.
 - Place file operations after all referenced variables are collected.
 
 5. Produce deterministic outputs.
-- Write `.onboard/wizard.yaml`.
-- Optionally write `.onboard/values.example.json` with realistic placeholders.
+- Write `.wiiz/wizard.yaml`.
+- Optionally write `.wiiz/values.example.json` with realistic placeholders.
 - Keep content concise and editable by humans.
 
 ## Output Contract
 
 When generating onboarding artifacts, produce these files:
 
-1. `.onboard/wizard.yaml`
+1. `.wiiz/wizard.yaml`
 - Must use `version: 1`.
 - Must include `name` and non-empty ordered `steps`.
-- Must only use supported step types: `input`, `select`, `confirm`, `display`, `note`, `ascii`, `banner`, `file.write`, `file.append`, `env.write`, `command.run`, `command.check`.
+- Must only use supported step types: `input`, `select`, `confirm`, `match`, `display`, `note`, `ascii`, `banner`, `file.write`, `file.append`, `env.write`, `command.run`, `command.check`.
 
-2. `.onboard/values.example.json`
+2. `.wiiz/values.example.json`
 - Map each prompt `var` to a representative sample value.
 - Ensure select values match declared option `value` exactly.
 
@@ -70,9 +70,9 @@ Before finishing:
 4. Verify regex patterns are valid when present.
 5. Verify non-interactive execution can run with values JSON.
 
-If repo-onboard CLI is available, run:
+If wiiz is available, run:
 
-- `onboard validate --config .onboard/wizard.yaml`
-- `onboard llm --config .onboard/wizard.yaml`
+- `onboard validate --config .wiiz/wizard.yaml`
+- `onboard llm --config .wiiz/wizard.yaml`
 
 If unavailable, still generate both files and explain unverified checks.

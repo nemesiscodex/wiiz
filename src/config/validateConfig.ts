@@ -1,6 +1,7 @@
 import type {
   ConfigValidationResult,
   InputStep,
+  MatchCase,
   StepWhen,
   SelectStep,
   WizardConfig,
@@ -66,6 +67,35 @@ function collectStepTemplateStrings(step: WizardStep): string[] {
   return [];
 }
 
+function validateCaseConditionShape(
+  condition: unknown,
+  label: string,
+  errors: string[]
+): condition is MatchCase {
+  if (!isRecord(condition)) {
+    errors.push(`${label} must be an object.`);
+    return false;
+  }
+
+  if (condition.equals !== undefined && typeof condition.equals !== 'string') {
+    errors.push(`${label} has invalid 'equals'; expected string.`);
+  }
+
+  if (condition.oneOf !== undefined) {
+    if (!Array.isArray(condition.oneOf) || condition.oneOf.length === 0) {
+      errors.push(`${label} has invalid 'oneOf'; expected non-empty string array.`);
+    } else if (!condition.oneOf.every(value => typeof value === 'string')) {
+      errors.push(`${label} has invalid 'oneOf'; expected non-empty string array.`);
+    }
+  }
+
+  if ((condition.equals === undefined) === (condition.oneOf === undefined)) {
+    errors.push(`${label} must define exactly one of 'equals' or 'oneOf'.`);
+  }
+
+  return true;
+}
+
 function validateWhenShape(
   when: unknown,
   label: string,
@@ -114,9 +144,15 @@ function validateWhenShape(
   return true;
 }
 
-function validateStepShape(step: unknown, index: number, errors: string[]): void {
+function validateStepsShape(steps: unknown[], errors: string[], path = 'steps'): void {
+  for (const [index, step] of steps.entries()) {
+    validateStepShape(step, index, errors, path);
+  }
+}
+
+function validateStepShape(step: unknown, index: number, errors: string[], path = 'steps'): void {
   if (!isRecord(step)) {
-    errors.push(`Step at index ${index} must be an object.`);
+    errors.push(`Step at ${path}[${index}] must be an object.`);
     return;
   }
 
@@ -304,109 +340,164 @@ function validateStepShape(step: unknown, index: number, errors: string[]): void
       }
       break;
     }
+    case 'match': {
+      if (!isNonEmptyString(step.var)) {
+        errors.push(`Step '${String(id)}' (match) must define a non-empty 'var'.`);
+      }
+      if (!Array.isArray(step.cases) || step.cases.length === 0) {
+        errors.push(`Step '${String(id)}' (match) must define a non-empty 'cases' array.`);
+        break;
+      }
+
+      for (const [caseIndex, matchCase] of step.cases.entries()) {
+        const caseLabel = `Step '${String(id)}' case at index ${caseIndex}`;
+        if (!validateCaseConditionShape(matchCase, caseLabel, errors)) {
+          continue;
+        }
+
+        if (!Array.isArray(matchCase.steps) || matchCase.steps.length === 0) {
+          errors.push(`${caseLabel} must define a non-empty 'steps' array.`);
+          continue;
+        }
+
+        validateStepsShape(matchCase.steps, errors, `${stepLabel}.cases[${caseIndex}].steps`);
+      }
+
+      if (step.default !== undefined) {
+        if (!isRecord(step.default)) {
+          errors.push(`Step '${String(id)}' (match) has invalid 'default'; expected object.`);
+          break;
+        }
+
+        if (!Array.isArray(step.default.steps) || step.default.steps.length === 0) {
+          errors.push(`Step '${String(id)}' (match) default must define a non-empty 'steps' array.`);
+          break;
+        }
+
+        validateStepsShape(step.default.steps, errors, `${stepLabel}.default.steps`);
+      }
+      break;
+    }
     default:
       errors.push(`Step '${String(id)}' has unsupported type '${type}'.`);
   }
 }
 
-function validateInterpolationReferences(steps: WizardStep[], errors: string[]): string[] {
-  const availableVars = new Set<string>();
+function validateStepSemantics(config: WizardConfig, errors: string[], warnings: string[]): void {
+  const seenStepIds = new Set<string>();
   const assignedVars = new Set<string>();
-  const duplicateVars: string[] = [];
+  const duplicateVars = new Set<string>();
 
-  for (const step of steps) {
-    if (step.type === 'input' || step.type === 'select') {
-      if (assignedVars.has(step.var)) {
-        duplicateVars.push(step.var);
-      }
-      assignedVars.add(step.var);
-      availableVars.add(step.var);
-      continue;
+  function recordAssignedVar(varName: string): void {
+    if (assignedVars.has(varName)) {
+      duplicateVars.add(varName);
     }
+    assignedVars.add(varName);
+  }
 
-    if (step.type === 'confirm' && step.var) {
-      if (assignedVars.has(step.var)) {
-        duplicateVars.push(step.var);
+  function validateSteps(steps: WizardStep[], availableVars: Set<string>): void {
+    for (const step of steps) {
+      if (seenStepIds.has(step.id)) {
+        errors.push(`Duplicate step id '${step.id}'.`);
       }
-      assignedVars.add(step.var);
-      availableVars.add(step.var);
-      continue;
-    }
+      seenStepIds.add(step.id);
 
-    const templates = collectStepTemplateStrings(step);
-    for (const template of templates) {
-      for (const token of extractTemplateTokens(template)) {
-        if (!availableVars.has(token)) {
+      if (step.when) {
+        if (!availableVars.has(step.when.var)) {
           errors.push(
-            `Step '${step.id}' references '{{${token}}}' before it is collected by a prior input/select step.`
+            `Step '${step.id}' references 'when.var=${step.when.var}' before it is collected by a prior step.`
+          );
+        }
+
+        if (step.when.oneOf) {
+          const unique = new Set(step.when.oneOf);
+          if (unique.size !== step.when.oneOf.length) {
+            errors.push(`Step '${step.id}' has duplicate values in 'when.oneOf'.`);
+          }
+        }
+      }
+
+      const templates = collectStepTemplateStrings(step);
+      for (const template of templates) {
+        for (const token of extractTemplateTokens(template)) {
+          if (!availableVars.has(token)) {
+            errors.push(
+              `Step '${step.id}' references '{{${token}}}' before it is collected by a prior step.`
+            );
+          }
+        }
+      }
+
+      if (step.type === 'input' && step.validateRegex) {
+        try {
+          new RegExp(step.validateRegex);
+        } catch (error) {
+          errors.push(`Input step '${step.id}' has invalid validateRegex: ${String(error)}`);
+        }
+      }
+
+      if (step.type === 'select') {
+        const values = step.options.map(option => option.value);
+        const uniqueValues = new Set(values);
+        if (uniqueValues.size !== values.length) {
+          errors.push(`Select step '${step.id}' has duplicate option values.`);
+        }
+      }
+
+      if (step.type === 'confirm') {
+        if (step.abortOnDecline === false && step.default === 'no') {
+          warnings.push(
+            `Confirm step '${step.id}' defaults to 'no' but does not abort when declined; it will auto-continue in non-interactive mode.`
           );
         }
       }
-    }
-  }
 
-  return [...new Set(duplicateVars)];
-}
-
-function validateStepSemantics(config: WizardConfig, errors: string[], warnings: string[]): void {
-  const seenStepIds = new Set<string>();
-  const availableVars = new Set<string>();
-
-  for (const step of config.steps) {
-    if (seenStepIds.has(step.id)) {
-      errors.push(`Duplicate step id '${step.id}'.`);
-    }
-    seenStepIds.add(step.id);
-
-    if (step.when) {
-      if (!availableVars.has(step.when.var)) {
-        errors.push(
-          `Step '${step.id}' references 'when.var=${step.when.var}' before it is collected by a prior input/select step.`
-        );
-      }
-
-      if (step.when.oneOf) {
-        const unique = new Set(step.when.oneOf);
-        if (unique.size !== step.when.oneOf.length) {
-          errors.push(`Step '${step.id}' has duplicate values in 'when.oneOf'.`);
+      if (step.type === 'match') {
+        if (!availableVars.has(step.var)) {
+          errors.push(
+            `Step '${step.id}' references 'var=${step.var}' before it is collected by a prior step.`
+          );
         }
+
+        const seenCaseValues = new Set<string>();
+        for (const [caseIndex, matchCase] of step.cases.entries()) {
+          const rawValues = matchCase.equals !== undefined ? [matchCase.equals] : (matchCase.oneOf ?? []);
+          const uniqueCaseValues = new Set(rawValues);
+          if (uniqueCaseValues.size !== rawValues.length) {
+            errors.push(`Step '${step.id}' case at index ${caseIndex} has duplicate values.`);
+          }
+
+          for (const value of uniqueCaseValues) {
+            if (seenCaseValues.has(value)) {
+              errors.push(`Step '${step.id}' has overlapping match cases for value '${value}'.`);
+            }
+            seenCaseValues.add(value);
+          }
+
+          validateSteps(matchCase.steps, new Set(availableVars));
+        }
+
+        if (step.default) {
+          validateSteps(step.default.steps, new Set(availableVars));
+        }
+
+        continue;
       }
-    }
 
-    if (step.type === 'input' && step.validateRegex) {
-      try {
-        new RegExp(step.validateRegex);
-      } catch (error) {
-        errors.push(`Input step '${step.id}' has invalid validateRegex: ${String(error)}`);
+      if (step.type === 'input' || step.type === 'select') {
+        recordAssignedVar(step.var);
+        availableVars.add(step.var);
       }
-    }
 
-    if (step.type === 'select') {
-      const values = step.options.map(option => option.value);
-      const uniqueValues = new Set(values);
-      if (uniqueValues.size !== values.length) {
-        errors.push(`Select step '${step.id}' has duplicate option values.`);
+      if (step.type === 'confirm' && step.var) {
+        recordAssignedVar(step.var);
+        availableVars.add(step.var);
       }
-    }
-
-    if (step.type === 'confirm') {
-      if (step.abortOnDecline === false && step.default === 'no') {
-        warnings.push(
-          `Confirm step '${step.id}' defaults to 'no' but does not abort when declined; it will auto-continue in non-interactive mode.`
-        );
-      }
-    }
-
-    if (step.type === 'input' || step.type === 'select') {
-      availableVars.add(step.var);
-    }
-
-    if (step.type === 'confirm' && step.var) {
-      availableVars.add(step.var);
     }
   }
 
-  const duplicateVars = validateInterpolationReferences(config.steps, errors);
+  validateSteps(config.steps, new Set<string>());
+
   for (const duplicateVar of duplicateVars) {
     warnings.push(`Variable '${duplicateVar}' is collected by multiple steps; latest value wins.`);
   }
@@ -433,9 +524,7 @@ export function validateConfigShape(config: unknown): ConfigValidationResult {
     return {errors, warnings};
   }
 
-  for (const [index, step] of config.steps.entries()) {
-    validateStepShape(step, index, errors);
-  }
+  validateStepsShape(config.steps, errors);
 
   if (errors.length > 0) {
     return {errors, warnings};

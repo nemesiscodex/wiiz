@@ -6,7 +6,7 @@ import Spinner from 'ink-spinner';
 import {WizardApp, type PromptResult} from './WizardApp.js';
 import {loadConfig} from './config/loadConfig.js';
 import {assertValidConfig, isPromptStep, validateConfigShape} from './config/validateConfig.js';
-import type {CommandRunStep, ConfirmStep, PromptStep, SelectStep} from './config/types.js';
+import type {CommandRunStep, ConfirmStep, MatchCase, MatchStep, PromptStep, SelectStep, WizardStep} from './config/types.js';
 import {describeConfigForLlm} from './engine/describeForLlm.js';
 import {executeOperationStep, type StepExecutionResult} from './engine/executeStep.js';
 import {getPromptValidationError, parseValuesJson, validateProvidedValues} from './engine/context.js';
@@ -235,6 +235,34 @@ async function resolveConfirmDecision(
   return result.value === 'yes';
 }
 
+function resolveMatchBranch(
+  step: MatchStep,
+  context: Record<string, string>
+): {steps: WizardStep[]; description: string} | undefined {
+  const selectedValue = context[step.var];
+  const matchedCase = step.cases.find((candidate: MatchCase) =>
+    candidate.equals !== undefined
+      ? candidate.equals === selectedValue
+      : (candidate.oneOf ?? []).includes(selectedValue)
+  );
+
+  if (matchedCase) {
+    return {
+      steps: matchedCase.steps,
+      description: `matched ${step.var}=${selectedValue}`
+    };
+  }
+
+  if (step.default) {
+    return {
+      steps: step.default.steps,
+      description: `used default branch for ${step.var}=${selectedValue ?? '(unset)'}`
+    };
+  }
+
+  return undefined;
+}
+
 async function runCommand(args: string[]): Promise<number> {
   const configPath = getFlagValue(args, '--config');
   const valuesPath = getFlagValue(args, '--values');
@@ -280,121 +308,150 @@ async function runCommand(args: string[]): Promise<number> {
   const operationResults: Awaited<ReturnType<typeof executeOperationStep>>[] = [];
   const cwd = process.cwd();
 
-  for (const step of loaded.config.steps) {
-    if (!shouldRunWhen(step.when, context)) {
-      console.log(`- \x1b[90m○\x1b[0m ${step.id}: skipped (when condition not met)`);
-      continue;
-    }
-
-    if (step.type === 'confirm') {
-      const decision = await resolveConfirmDecision(step, context, valuesPath);
-      if (decision === 'cancelled') {
-        console.log('\nWizard cancelled.');
-        return 0;
-      }
-
-      if (step.var) {
-        context[step.var] = decision ? 'yes' : 'no';
-      }
-
-      if (decision) {
-        console.log(`- \x1b[32m✓\x1b[0m ${step.id}: confirmed`);
+  async function runSteps(steps: WizardStep[]): Promise<'completed' | 'cancelled' | 'stopped' | 'failed'> {
+    for (const step of steps) {
+      if (!shouldRunWhen(step.when, context)) {
+        console.log(`- \x1b[90m○\x1b[0m ${step.id}: skipped (when condition not met)`);
         continue;
       }
 
-      console.log(`- \x1b[33m○\x1b[0m ${step.id}: declined`);
-      if (step.abortOnDecline ?? true) {
-        console.log('Stopping onboarding at confirmation checkpoint.');
-        return 0;
-      }
-      continue;
-    }
+      if (step.type === 'match') {
+        const branch = resolveMatchBranch(step, context);
+        if (!branch) {
+          console.log(`- \x1b[90m○\x1b[0m ${step.id}: no branch matched ${step.var}=${context[step.var] ?? '(unset)'}`);
+          continue;
+        }
 
-    if (isPromptStep(step)) {
-      if (valuesPath) {
+        console.log(`- \x1b[32m✓\x1b[0m ${step.id}: ${branch.description}`);
+        const nestedStatus = await runSteps(branch.steps);
+        if (nestedStatus !== 'completed') {
+          return nestedStatus;
+        }
         continue;
       }
 
-      const prefill = await loadEnvPrefillValue(step, cwd);
-      if (prefill) {
-        const canKeep = getPromptValidationError(step, prefill.value) === undefined;
+      if (step.type === 'confirm') {
+        const decision = await resolveConfirmDecision(step, context, valuesPath);
+        if (decision === 'cancelled') {
+          return 'cancelled';
+        }
 
-        if (canKeep) {
-          const keepReplaceStep: SelectStep = {
-            id: `${step.id}__keep_replace`,
-            type: 'select',
-            message: `Found ${prefill.envKey} in ${prefill.envFile} (${formatEnvPrefillPreview(step, prefill.value)}). Keep or replace?`,
-            var: `${step.var}__keep_replace`,
-            options: [
-              {label: 'Keep existing', value: 'keep'},
-              {label: 'Replace value', value: 'replace'}
-            ]
-          };
-          const keepReplaceResult = await promptForStep(keepReplaceStep);
-          if (keepReplaceResult.status === 'cancelled') {
-            console.log('\nWizard cancelled.');
-            return 0;
-          }
+        if (step.var) {
+          context[step.var] = decision ? 'yes' : 'no';
+        }
 
-          if (keepReplaceResult.value === 'keep') {
-            context[step.var] = prefill.value;
-            console.log(`- \x1b[32m✓\x1b[0m ${step.id}: Keeping existing ${prefill.envKey} from ${prefill.envFile}`);
-            continue;
+        if (decision) {
+          console.log(`- \x1b[32m✓\x1b[0m ${step.id}: confirmed`);
+          continue;
+        }
+
+        console.log(`- \x1b[33m○\x1b[0m ${step.id}: declined`);
+        if (step.abortOnDecline ?? true) {
+          console.log('Stopping onboarding at confirmation checkpoint.');
+          return 'stopped';
+        }
+        continue;
+      }
+
+      if (isPromptStep(step)) {
+        if (valuesPath) {
+          continue;
+        }
+
+        const prefill = await loadEnvPrefillValue(step, cwd);
+        if (prefill) {
+          const canKeep = getPromptValidationError(step, prefill.value) === undefined;
+
+          if (canKeep) {
+            const keepReplaceStep: SelectStep = {
+              id: `${step.id}__keep_replace`,
+              type: 'select',
+              message: `Found ${prefill.envKey} in ${prefill.envFile} (${formatEnvPrefillPreview(step, prefill.value)}). Keep or replace?`,
+              var: `${step.var}__keep_replace`,
+              options: [
+                {label: 'Keep existing', value: 'keep'},
+                {label: 'Replace value', value: 'replace'}
+              ]
+            };
+            const keepReplaceResult = await promptForStep(keepReplaceStep);
+            if (keepReplaceResult.status === 'cancelled') {
+              return 'cancelled';
+            }
+
+            if (keepReplaceResult.value === 'keep') {
+              context[step.var] = prefill.value;
+              console.log(`- \x1b[32m✓\x1b[0m ${step.id}: Keeping existing ${prefill.envKey} from ${prefill.envFile}`);
+              continue;
+            }
           }
+        }
+
+        const promptResult = await promptForStep(step);
+        if (promptResult.status === 'cancelled') {
+          return 'cancelled';
+        }
+
+        context[step.var] = promptResult.value;
+        continue;
+      }
+
+      let approved: boolean | undefined;
+      if (step.type === 'command.run') {
+        if (valuesPath) {
+          approved = false;
+        } else {
+          const permission = await promptForCommandPermission(step);
+          if (permission === 'cancelled') {
+            return 'cancelled';
+          }
+          approved = permission;
         }
       }
 
-      const promptResult = await promptForStep(step);
-      if (promptResult.status === 'cancelled') {
-        console.log('\nWizard cancelled.');
-        return 0;
-      }
-
-      context[step.var] = promptResult.value;
-      continue;
-    }
-
-    let approved: boolean | undefined;
-    if (step.type === 'command.run') {
-      if (valuesPath) {
-        approved = false;
-      } else {
-        const permission = await promptForCommandPermission(step);
-        if (permission === 'cancelled') {
-          console.log('\nWizard cancelled.');
-          return 0;
+      try {
+        const shouldSpin =
+          !valuesPath &&
+          step.type !== 'display' &&
+          step.type !== 'note' &&
+          step.type !== 'ascii' &&
+          step.type !== 'banner' &&
+          !(step.type === 'command.run' && approved && !dryRun);
+        const execute = () => executeOperationStep(step, {context, dryRun, approved});
+        if (!shouldSpin && step.type === 'command.run' && approved && !dryRun) {
+          console.log(`\x1b[36m→ Running ${step.id}...\x1b[0m`);
         }
-        approved = permission;
+        const result = shouldSpin
+          ? await executeWithSpinner(`Running ${step.id}...`, execute)
+          : await execute();
+        operationResults.push(result);
+        console.log(`- ${formatResultLine(result)}`);
+
+        if (step.type === 'command.check' && result.stopExecution) {
+          console.log(`\n${result.contentPreview}`);
+          console.log('Ending onboarding until dependency is installed.');
+          return 'stopped';
+        }
+      } catch (error) {
+        console.error(`Failed at step '${step.id}': ${String(error)}`);
+        return 'failed';
       }
     }
 
-    try {
-      const shouldSpin =
-        !valuesPath &&
-        step.type !== 'display' &&
-        step.type !== 'note' &&
-        step.type !== 'ascii' &&
-        step.type !== 'banner' &&
-        !(step.type === 'command.run' && approved && !dryRun);
-      const execute = () => executeOperationStep(step, {context, dryRun, approved});
-      if (!shouldSpin && step.type === 'command.run' && approved && !dryRun) {
-        console.log(`\x1b[36m→ Running ${step.id}...\x1b[0m`);
-      }
-      const result = shouldSpin
-        ? await executeWithSpinner(`Running ${step.id}...`, execute)
-        : await execute();
-      operationResults.push(result);
-      console.log(`- ${formatResultLine(result)}`);
+    return 'completed';
+  }
 
-      if (step.type === 'command.check' && result.stopExecution) {
-        console.log(`\n${result.contentPreview}`);
-        console.log('Ending onboarding until dependency is installed.');
-        return 0;
-      }
-    } catch (error) {
-      console.error(`Failed at step '${step.id}': ${String(error)}`);
-      return 1;
-    }
+  const runStatus = await runSteps(loaded.config.steps);
+  if (runStatus === 'cancelled') {
+    console.log('\nWizard cancelled.');
+    return 0;
+  }
+
+  if (runStatus === 'stopped') {
+    return 0;
+  }
+
+  if (runStatus === 'failed') {
+    return 1;
   }
 
   console.log(`\nRun complete (${dryRun ? 'dry-run' : 'applied'}).`);

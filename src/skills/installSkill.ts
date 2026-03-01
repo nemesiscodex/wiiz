@@ -60,7 +60,7 @@ const SKILL_MD_CONTENT = [
   '1. `.wiiz/wizard.yaml`',
   '- Must use `version: 1`.',
   '- Must include `name` and non-empty ordered `steps`.',
-  '- Must only use supported step types: `input`, `select`, `confirm`, `display`, `note`, `ascii`, `banner`, `file.write`, `file.append`, `env.write`, `command.run`, `command.check`.',
+  '- Must only use supported step types: `input`, `select`, `confirm`, `match`, `display`, `note`, `ascii`, `banner`, `file.write`, `file.append`, `env.write`, `command.run`, `command.check`.',
   '',
   '2. `.wiiz/values.example.json`',
   '- Map each prompt `var` to a representative sample value.',

@@ -1,3 +1,0 @@
-name=Julio Daniel
-email=julio@example.com
-env=development

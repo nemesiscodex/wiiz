@@ -46,6 +46,32 @@ describe('validateConfigShape', () => {
           id: 'install',
           type: 'command.run',
           command: 'bun install'
+        },
+        {
+          id: 'match-env',
+          type: 'match',
+          var: 'NAME',
+          cases: [
+            {
+              equals: 'julio',
+              steps: [
+                {
+                  id: 'nested-note',
+                  type: 'note',
+                  message: 'Hello {{NAME}}'
+                }
+              ]
+            }
+          ],
+          default: {
+            steps: [
+              {
+                id: 'nested-display',
+                type: 'display',
+                message: 'Fallback'
+              }
+            ]
+          }
         }
       ]
     };
@@ -249,5 +275,104 @@ describe('validateConfigShape', () => {
 
     const result = validateConfigShape(config);
     expect(result.errors.join('\n')).toContain("invalid 'var'");
+  });
+
+  test('rejects match without cases', () => {
+    const config = {
+      version: 1,
+      name: 'bad',
+      steps: [
+        {
+          id: 'ask-env',
+          type: 'input',
+          message: 'Env',
+          var: 'ENV'
+        },
+        {
+          id: 'branch',
+          type: 'match',
+          var: 'ENV',
+          cases: []
+        }
+      ]
+    };
+
+    const result = validateConfigShape(config);
+    expect(result.errors.join('\n')).toContain("must define a non-empty 'cases' array");
+  });
+
+  test('rejects overlapping match cases', () => {
+    const config = {
+      version: 1,
+      name: 'bad',
+      steps: [
+        {
+          id: 'ask-env',
+          type: 'input',
+          message: 'Env',
+          var: 'ENV'
+        },
+        {
+          id: 'branch',
+          type: 'match',
+          var: 'ENV',
+          cases: [
+            {
+              equals: 'production',
+              steps: [{id: 'prod-note', type: 'note', message: 'prod'}]
+            },
+            {
+              oneOf: ['development', 'production'],
+              steps: [{id: 'fallback-note', type: 'note', message: 'other'}]
+            }
+          ]
+        }
+      ]
+    };
+
+    const result = validateConfigShape(config);
+    expect(result.errors.join('\n')).toContain("overlapping match cases for value 'production'");
+  });
+
+  test('rejects referencing branch-only vars after match', () => {
+    const config = {
+      version: 1,
+      name: 'bad',
+      steps: [
+        {
+          id: 'ask-env',
+          type: 'input',
+          message: 'Env',
+          var: 'ENV'
+        },
+        {
+          id: 'branch',
+          type: 'match',
+          var: 'ENV',
+          cases: [
+            {
+              equals: 'production',
+              steps: [
+                {
+                  id: 'ask-token',
+                  type: 'input',
+                  message: 'Token',
+                  var: 'TOKEN'
+                }
+              ]
+            }
+          ]
+        },
+        {
+          id: 'write-file',
+          type: 'file.write',
+          path: 'out.txt',
+          content: 'Token={{TOKEN}}'
+        }
+      ]
+    };
+
+    const result = validateConfigShape(config);
+    expect(result.errors.join('\n')).toContain("references '{{TOKEN}}'");
   });
 });
