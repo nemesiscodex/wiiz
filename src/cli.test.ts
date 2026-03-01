@@ -12,7 +12,7 @@ type CapturedOutput = {
 const tempDirs: string[] = [];
 
 async function makeTempDir(): Promise<string> {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'repo-onboard-cli-'));
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wiiz-cli-'));
   tempDirs.push(tempDir);
   return tempDir;
 }
@@ -226,6 +226,30 @@ describe('run command', () => {
     expect(notesContent).toContain('env=production');
     expect(envContent).toContain('NAME=julio');
     expect(envContent).toContain('NODE_ENV=production');
+  });
+
+  test('merges env.write into an existing .env file', async () => {
+    const tempDir = await makeTempDir();
+    const configPath = path.join(tempDir, 'wizard.yaml');
+    const valuesPath = path.join(tempDir, 'values.json');
+    const envFile = path.join(tempDir, '.env');
+
+    await fs.writeFile(configPath, buildValidConfig(tempDir), 'utf8');
+    await fs.writeFile(
+      valuesPath,
+      JSON.stringify({NAME: 'julio cesar', NODE_ENV: 'production'}, null, 2),
+      'utf8'
+    );
+    await fs.writeFile(envFile, '# existing config\nPORT=3000\nNAME=old\n', 'utf8');
+
+    const result = await captureOutput(() =>
+      main(['run', '--config', configPath, '--values', valuesPath])
+    );
+
+    expect(result.code).toBe(0);
+
+    const envContent = await fs.readFile(envFile, 'utf8');
+    expect(envContent).toBe('# existing config\nPORT=3000\nNAME="julio cesar"\nNODE_ENV=production\n');
   });
 
   test('reports missing values in non-interactive mode', async () => {
@@ -574,7 +598,16 @@ describe('run command', () => {
 
 describe('skill command', () => {
   test('completes without error when skill already exists', async () => {
-    const result = await captureOutput(() => main(['skill']));
+    const tempDir = await makeTempDir();
+    const originalCwd = process.cwd();
+    let result: Awaited<ReturnType<typeof captureOutput>>;
+    try {
+      process.chdir(tempDir);
+      result = await captureOutput(() => main(['skill']));
+    } finally {
+      process.chdir(originalCwd);
+    }
+
     expect(result.code).toBe(0);
     expect(result.logs.join('\n')).toMatch(/Installed skill|Skill already exists/);
   });

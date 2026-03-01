@@ -1,4 +1,4 @@
-export const DEFAULT_CONFIG_PATH = '.onboard/wizard.yaml';
+export const DEFAULT_CONFIG_PATH = '.wiiz/wizard.yaml';
 
 export type StepWhen = {
   var: string;

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "repo-onboard",
+      "name": "wiiz",
       "dependencies": {
         "ink": "^6.3.1",
         "ink-spinner": "^5.0.0",

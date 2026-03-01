@@ -3,12 +3,13 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type {PromptStep} from '../config/types.js';
+import {parseEnvLine} from './envFile.js';
 import {formatEnvPrefillPreview, loadEnvPrefillValue, maskEnvValue} from './envPrefill.js';
 
 const tempDirs: string[] = [];
 
 async function makeTempDir(): Promise<string> {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'repo-onboard-env-'));
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wiiz-env-'));
   tempDirs.push(tempDir);
   return tempDir;
 }
@@ -114,5 +115,28 @@ describe('loadEnvPrefillValue', () => {
     const loaded = await loadEnvPrefillValue(step, cwd);
     expect(loaded?.value).toBe('julio');
     expect(loaded?.envKey).toBe('CUSTOM_NAME');
+  });
+
+  test('reads export statements and quoted values', async () => {
+    const cwd = await makeTempDir();
+    await fs.writeFile(path.join(cwd, '.env'), 'export APP_NAME="repo onboard"\n', 'utf8');
+
+    const step: PromptStep = {
+      id: 'app-name',
+      type: 'input',
+      message: 'App name',
+      var: 'APP_NAME',
+      envFile: '.env'
+    };
+
+    const loaded = await loadEnvPrefillValue(step, cwd);
+    expect(loaded?.value).toBe('repo onboard');
+  });
+});
+
+describe('parseEnvLine', () => {
+  test('ignores comments and strips wrapping quotes', () => {
+    expect(parseEnvLine('# comment')).toBeUndefined();
+    expect(parseEnvLine(' export API_KEY = "abc 123" ')).toEqual({key: 'API_KEY', value: 'abc 123'});
   });
 });

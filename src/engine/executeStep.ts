@@ -2,6 +2,7 @@ import {spawn} from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type {NonPromptStep} from '../config/types.js';
+import {mergeEnvFileContent, renderEnvFileContent} from './envFile.js';
 import {interpolateTemplate} from './interpolate.js';
 
 export type StepExecutionResult = {
@@ -187,11 +188,20 @@ export async function executeOperationStep(
 
   if (step.type === 'env.write') {
     const targetPath = resolveInterpolatedPath(step.path, options.context, cwd);
-    const lines = step.entries.map(entry => `${entry.key}=${interpolateTemplate(entry.value, options.context)}`);
-    const content = `${lines.join('\n')}\n`;
+    const entries = step.entries.map(entry => ({
+      key: entry.key,
+      value: interpolateTemplate(entry.value, options.context)
+    }));
+    const targetExists = await pathExists(targetPath);
 
-    if ((await pathExists(targetPath)) && !step.overwrite) {
+    if (targetExists && !step.overwrite) {
       throw new Error(`Step '${step.id}' refused to overwrite existing file: ${targetPath}`);
+    }
+
+    let content = renderEnvFileContent(entries);
+    if (targetExists) {
+      const existingContent = await fs.readFile(targetPath, 'utf8');
+      content = mergeEnvFileContent(entries, existingContent);
     }
 
     if (!options.dryRun) {

@@ -7,7 +7,7 @@ import {executeOperationStep} from './executeStep.js';
 const tempDirs: string[] = [];
 
 async function makeTempDir(): Promise<string> {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'repo-onboard-'));
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wiiz-'));
   tempDirs.push(tempDir);
   return tempDir;
 }
@@ -95,7 +95,7 @@ describe('executeOperationStep', () => {
     const cwd = await makeTempDir();
     const target = path.join(cwd, '.env');
 
-    await executeOperationStep(
+    const result = await executeOperationStep(
       {
         id: 'write-env',
         type: 'env.write',
@@ -103,15 +103,82 @@ describe('executeOperationStep', () => {
         overwrite: true,
         entries: [
           {key: 'NAME', value: '{{name}}'},
-          {key: 'NODE_ENV', value: 'production'}
+          {key: 'NODE_ENV', value: 'production mode'}
         ]
       },
       {context: {name: 'julio'}, dryRun: false, cwd}
     );
 
     const content = await fs.readFile(target, 'utf8');
-    expect(content).toContain('NAME=julio');
-    expect(content).toContain('NODE_ENV=production');
+    expect(content).toBe('NAME=julio\nNODE_ENV="production mode"\n');
+    expect(result.contentPreview).toBe('NAME=julio\nNODE_ENV="production mode"\n');
+  });
+
+  test('merges env entries into an existing file and preserves unrelated content', async () => {
+    const cwd = await makeTempDir();
+    const target = path.join(cwd, '.env');
+    await fs.writeFile(target, '# keep me\r\nPORT=3000\r\nNAME=old\r\n\r\n', 'utf8');
+
+    await executeOperationStep(
+      {
+        id: 'write-env',
+        type: 'env.write',
+        path: '.env',
+        overwrite: true,
+        entries: [
+          {key: 'NAME', value: 'julio'},
+          {key: 'NODE_ENV', value: 'production'}
+        ]
+      },
+      {context: {}, dryRun: false, cwd}
+    );
+
+    const content = await fs.readFile(target, 'utf8');
+    expect(content).toBe('# keep me\r\nPORT=3000\r\nNAME=julio\r\n\r\nNODE_ENV=production\r\n');
+  });
+
+  test('rewrites duplicate managed keys and escapes quoted values with whitespace', async () => {
+    const cwd = await makeTempDir();
+    const target = path.join(cwd, '.env');
+    await fs.writeFile(target, 'NAME=old\nNAME=older\n', 'utf8');
+
+    await executeOperationStep(
+      {
+        id: 'write-env',
+        type: 'env.write',
+        path: '.env',
+        overwrite: true,
+        entries: [{key: 'NAME', value: 'say "hi" \\ now'}]
+      },
+      {context: {}, dryRun: false, cwd}
+    );
+
+    const content = await fs.readFile(target, 'utf8');
+    expect(content).toBe('NAME="say \\"hi\\" \\\\ now"\nNAME="say \\"hi\\" \\\\ now"\n');
+  });
+
+  test('shows merged final content during dry-run without changing the file', async () => {
+    const cwd = await makeTempDir();
+    const target = path.join(cwd, '.env');
+    await fs.writeFile(target, 'KEEP=1\nNAME=old\n', 'utf8');
+
+    const result = await executeOperationStep(
+      {
+        id: 'write-env',
+        type: 'env.write',
+        path: '.env',
+        overwrite: true,
+        entries: [
+          {key: 'NAME', value: 'julio cesar'},
+          {key: 'NODE_ENV', value: 'production'}
+        ]
+      },
+      {context: {}, dryRun: true, cwd}
+    );
+
+    const content = await fs.readFile(target, 'utf8');
+    expect(content).toBe('KEEP=1\nNAME=old\n');
+    expect(result.contentPreview).toBe('KEEP=1\nNAME="julio cesar"\nNODE_ENV=production\n');
   });
 
   test('skips command.run when not approved', async () => {

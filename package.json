@@ -1,11 +1,11 @@
 {
-  "name": "repo-onboard",
+  "name": "wiiz",
   "module": "index.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --watch src/cli.tsx run",
-    "onboard": "bun src/cli.tsx",
+    "start": "bun src/cli.tsx run",
+    "cli": "bun src/cli.tsx",
     "validate": "bun src/cli.tsx validate",
     "llm": "bun src/cli.tsx llm",
     "typecheck": "tsc --noEmit",

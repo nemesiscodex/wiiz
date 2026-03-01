@@ -1,43 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type {PromptStep} from '../config/types.js';
-
-function parseEnvLine(line: string): {key: string; value: string} | undefined {
-  const trimmed = line.trim();
-  if (trimmed.length === 0 || trimmed.startsWith('#')) {
-    return undefined;
-  }
-
-  const normalized = trimmed.startsWith('export ') ? trimmed.slice('export '.length) : trimmed;
-  const separatorIndex = normalized.indexOf('=');
-  if (separatorIndex <= 0) {
-    return undefined;
-  }
-
-  const key = normalized.slice(0, separatorIndex).trim();
-  let value = normalized.slice(separatorIndex + 1).trim();
-
-  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-    value = value.slice(1, -1);
-  }
-
-  return {key, value};
-}
-
-function parseEnvContent(content: string): Record<string, string> {
-  const result: Record<string, string> = {};
-
-  for (const line of content.split(/\r?\n/)) {
-    const parsed = parseEnvLine(line);
-    if (!parsed) {
-      continue;
-    }
-
-    result[parsed.key] = parsed.value;
-  }
-
-  return result;
-}
+import {parseEnvContent} from './envFile.js';
 
 export function maskEnvValue(value: string): string {
   const visible = value.slice(0, 2);

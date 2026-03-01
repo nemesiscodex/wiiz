@@ -35,7 +35,7 @@ describe('validateConfigShape', () => {
         {
           id: 'banner',
           type: 'banner',
-          path: '.onboard/logo.txt'
+          path: '.wiiz/logo.txt'
         },
         {
           id: 'check-bun',
@@ -74,7 +74,7 @@ describe('validateConfigShape', () => {
           id: 'banner',
           type: 'banner',
           content: '*** START ***',
-          path: '.onboard/logo.txt'
+          path: '.wiiz/logo.txt'
         }
       ]
     };

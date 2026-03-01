@@ -13,11 +13,11 @@ import {getPromptValidationError, parseValuesJson, validateProvidedValues} from 
 import {formatEnvPrefillPreview, loadEnvPrefillValue} from './engine/envPrefill.js';
 import {interpolateTemplate} from './engine/interpolate.js';
 import {shouldRunWhen} from './engine/when.js';
-import {installRepoOnboardAuthorSkill} from './skills/installSkill.js';
+import {installWiizAuthorSkill} from './skills/installSkill.js';
 
 function printUsage(): void {
   console.log(
-    `repo-onboard\n\nUsage:\n  onboard run [--config <path>] [--dry-run] [--values <file.json>]\n  onboard validate [--config <path>]\n  onboard llm [--config <path>]\n  onboard skill [--force]`
+    `wiiz\n\nUsage:\n  onboard run [--config <path>] [--dry-run] [--values <file.json>]\n  onboard validate [--config <path>]\n  onboard llm [--config <path>]\n  onboard skill [--force]`
   );
 }
 
@@ -111,7 +111,7 @@ function printValidationMessages(prefix: string, messages: string[]): void {
 
 function printMissingConfigMessage(): void {
   console.log('No onboarding config found yet.');
-  console.log('Create .onboard/wizard.yaml to continue.');
+  console.log('Create .wiiz/wizard.yaml to continue.');
   console.log('Tip: run `onboard skill` to install a skill that can generate this file.');
 }
 
@@ -431,7 +431,7 @@ async function llmCommand(args: string[]): Promise<number> {
   const configPath = getFlagValue(args, '--config');
   const loadResult = await loadConfigWithHelp(configPath);
   if (!loadResult.shouldContinue) {
-    console.log('LLM spec unavailable until .onboard/wizard.yaml exists.');
+    console.log('LLM spec unavailable until .wiiz/wizard.yaml exists.');
     return 0;
   }
   const {loaded} = loadResult;
@@ -451,7 +451,7 @@ async function llmCommand(args: string[]): Promise<number> {
 
 async function skillCommand(args: string[]): Promise<number> {
   const force = hasFlag(args, '--force');
-  const result = await installRepoOnboardAuthorSkill({force});
+  const result = await installWiizAuthorSkill({force});
 
   if (!result.created) {
     console.log(
