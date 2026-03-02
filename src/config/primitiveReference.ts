@@ -369,7 +369,7 @@ const primitiveReferences = [
   {
     name: 'note',
     category: 'Output',
-    summary: 'Print interpolated guidance in a framed note block.',
+    summary: 'Print interpolated guidance in a wizard-style note card.',
     purpose: 'Render emphasized informational output during execution.',
     fields: [
       {name: 'id', type: 'string', required: true, defaultDescription: 'None.', description: 'Stable step identifier.'},
@@ -377,7 +377,7 @@ const primitiveReferences = [
       {name: 'message', type: 'string', required: true, defaultDescription: 'None.', description: 'Text to render.'}
     ],
     constraints: ['`message` must be a non-empty string.'],
-    behaviorNotes: ['Renders inline output without mutating files.', 'Uses note formatting to make guidance stand out.'],
+    behaviorNotes: ['Renders inline output without mutating files.', 'Uses the same rounded card styling as other wizard prompts to make guidance stand out.'],
     whenSupport: 'Supported. `when` gates whether the note is shown.',
     interpolationNotes: ['`message` supports interpolation from values collected by earlier steps.'],
     exampleYaml: [

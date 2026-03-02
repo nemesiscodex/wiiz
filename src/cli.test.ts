@@ -595,7 +595,17 @@ describe('run command', () => {
 
     expect(result.code).toBe(0);
     expect(result.logs.join('\n')).toContain('show-display:\n  Hello julio');
-    expect(result.logs.join('\n')).toContain('show-note:\n  +------------------------+\n  | Review setup for julio |\n  +------------------------+');
+    expect(result.logs.join('\n')).toContain(
+      [
+        'show-note:',
+        '╭──────────────────────────╮',
+        '│                          │',
+        '│  [show-note]             │',
+        '│  Review setup for julio  │',
+        '│                          │',
+        '╰──────────────────────────╯'
+      ].join('\n')
+    );
   });
 
   test('stops at declined confirm in non-interactive mode by default', async () => {

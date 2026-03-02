@@ -1,6 +1,6 @@
 {
   "name": "wiiz",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Repeatable repository onboarding from .wiiz/wizard.yaml.",
   "type": "module",
   "publishConfig": {

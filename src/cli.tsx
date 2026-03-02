@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {Box, Text, render} from 'ink';
 import Spinner from 'ink-spinner';
-import {WizardApp, type PromptResult} from './WizardApp.js';
+import {formatStaticCard, WizardApp, type PromptResult} from './WizardApp.js';
 import {loadConfig} from './config/loadConfig.js';
 import {
   getPrimitiveReference,
@@ -281,7 +281,7 @@ function formatResultLine(result: StepExecutionResult): string {
   }
 
   if (result.type === 'note') {
-    return `${statusPrefix}:\n${formatFramedBlock(result.contentPreview)}`;
+    return `${statusPrefix}:\n${formatStaticCard(result.stepId, result.contentPreview)}`;
   }
 
   if (result.targetPath) {
@@ -302,15 +302,6 @@ function normalizeRenderedLines(content: string): string[] {
 
 function formatIndentedBlock(content: string): string {
   return normalizeRenderedLines(content).map(line => `  ${line}`).join('\n');
-}
-
-function formatFramedBlock(content: string): string {
-  const lines = normalizeRenderedLines(content);
-  const width = Math.max(...lines.map(line => line.length), 0);
-  const border = `  +-${'-'.repeat(width)}-+`;
-  const body = lines.map(line => `  | ${line.padEnd(width, ' ')} |`).join('\n');
-
-  return [border, body, border].join('\n');
 }
 
 async function resolveConfirmDecision(

@@ -61,6 +61,27 @@ function getDisplayStepId(stepId: string): string {
   return `[${baseId}]`;
 }
 
+function normalizeStaticCardLines(content: string): string[] {
+  const normalized = content.replaceAll('\r\n', '\n').replace(/\n+$/u, '');
+  if (normalized.length === 0) {
+    return [''];
+  }
+
+  return normalized.split('\n');
+}
+
+export function formatStaticCard(stepId: string, content: string): string {
+  const displayLines = [getDisplayStepId(stepId), ...normalizeStaticCardLines(content)];
+  const contentWidth = Math.max(...displayLines.map(line => line.length), 0);
+  const horizontalRule = '─'.repeat(contentWidth + 4);
+  const blankLine = `│ ${' '.repeat(contentWidth + 2)} │`;
+  const body = displayLines
+    .map(line => `│  ${line.padEnd(contentWidth, ' ')}  │`)
+    .join('\n');
+
+  return [`╭${horizontalRule}╮`, blankLine, body, blankLine, `╰${horizontalRule}╯`].join('\n');
+}
+
 function parseDetailLine(line: string): MessageDetail {
   const commandPrefix = 'Command:';
   if (!line.startsWith(commandPrefix)) {

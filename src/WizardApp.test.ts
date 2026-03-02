@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'bun:test';
 import {
+  formatStaticCard,
   formatInputDefaultHint,
   formatPromptControls,
   formatPromptInputValue
@@ -83,5 +84,20 @@ describe('formatPromptInputValue', () => {
     });
 
     expect(result).toBe('↑/↓: move • Enter: confirm • q/Esc: cancel');
+  });
+
+  test('formats static cards using the wizard border style', () => {
+    const result = formatStaticCard('show-note', 'Review setup for julio');
+
+    expect(result).toBe(
+      [
+        '╭──────────────────────────╮',
+        '│                          │',
+        '│  [show-note]             │',
+        '│  Review setup for julio  │',
+        '│                          │',
+        '╰──────────────────────────╯'
+      ].join('\n')
+    );
   });
 });
