@@ -1,5 +1,7 @@
 # wiiz
 
+![wiiz example](docs/wiiz-example.gif)
+
 **Getting started section—as an interactive wizard.** Define the steps once; run `wiiz run` whenever you or someone new needs to get the project running.
 
 ---
