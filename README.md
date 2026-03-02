@@ -61,6 +61,8 @@ npx wiiz skill
 
 That installs `wiiz-yaml-author` at `.agents/skills/wiiz-yaml-author/SKILL.md` so you can generate `.wiiz/wizard.yaml` and `.wiiz/values.example.json`.
 
+![wiiz skill example](docs/wiiz-skill-example.gif)
+
 Validate a config:
 
 ```bash
