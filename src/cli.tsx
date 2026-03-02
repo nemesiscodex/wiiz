@@ -13,7 +13,6 @@ import {
 } from './config/primitiveReference.js';
 import {assertValidConfig, isPromptStep, validateConfigShape} from './config/validateConfig.js';
 import type {CommandRunStep, ConfirmStep, MatchCase, MatchStep, PromptStep, SelectStep, WizardStep} from './config/types.js';
-import {describeConfigForLlm} from './engine/describeForLlm.js';
 import {executeOperationStep, type StepExecutionResult} from './engine/executeStep.js';
 import {getPromptValidationError, parseValuesJson, validateProvidedValues} from './engine/context.js';
 import {formatEnvPrefillPreview, loadEnvPrefillValue} from './engine/envPrefill.js';
@@ -41,14 +40,12 @@ function renderGeneralHelp(): string {
     '  wiiz help <primitive>',
     '  wiiz run [--config <path>] [--dry-run] [--values <file.json>]',
     '  wiiz validate [--config <path>]',
-    '  wiiz llm [--config <path>]',
     '  wiiz skill [--force]',
     '',
     'Top-level commands:',
     '  help      Show CLI help, primitive lists, or primitive details.',
     '  run       Execute the onboarding flow.',
     '  validate  Validate `.wiiz/wizard.yaml` without running it.',
-    '  llm       Print a machine-readable description of the loaded config.',
     '  skill     Install the built-in `wiiz-yaml-author` skill.',
     '',
     'Primitive reference:',
@@ -621,28 +618,6 @@ async function validateCommand(args: string[]): Promise<number> {
   return 0;
 }
 
-async function llmCommand(args: string[]): Promise<number> {
-  const configPath = getFlagValue(args, '--config');
-  const loadResult = await loadConfigWithHelp(configPath);
-  if (!loadResult.shouldContinue) {
-    console.log('LLM spec unavailable until .wiiz/wizard.yaml exists.');
-    return 0;
-  }
-  const {loaded} = loadResult;
-  const validation = validateConfigShape(loaded.config);
-
-  if (validation.errors.length > 0) {
-    printValidationMessages('Config validation failed:', validation.errors);
-    return 1;
-  }
-
-  assertValidConfig(loaded.config);
-
-  const description = describeConfigForLlm(loaded.config, loaded.resolvedPath);
-  console.log(JSON.stringify(description, null, 2));
-  return 0;
-}
-
 async function skillCommand(args: string[]): Promise<number> {
   const force = hasFlag(args, '--force');
   const result = await installWiizAuthorSkill({force});
@@ -703,10 +678,6 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
 
     if (command === 'validate') {
       return validateCommand(args);
-    }
-
-    if (command === 'llm') {
-      return llmCommand(args);
     }
 
     if (command === 'skill') {

@@ -111,13 +111,6 @@ describe('main command routing', () => {
     expect(result.logs.join('\n')).toContain('No onboarding config found yet.');
   });
 
-  test('llm is friendly when config is missing', async () => {
-    const missingPath = path.join(await makeTempDir(), 'missing.yaml');
-    const result = await captureOutput(() => main(['llm', '--config', missingPath]));
-    expect(result.code).toBe(0);
-    expect(result.logs.join('\n')).toContain('LLM spec unavailable');
-  });
-
   test('run is friendly when config is missing', async () => {
     const missingPath = path.join(await makeTempDir(), 'missing.yaml');
     const result = await captureOutput(() => main(['run', '--config', missingPath]));
@@ -203,20 +196,13 @@ describe('validate command', () => {
   });
 });
 
-describe('llm command', () => {
-  test('prints JSON description for valid config', async () => {
-    const tempDir = await makeTempDir();
-    const configPath = path.join(tempDir, 'wizard.yaml');
-    await fs.writeFile(configPath, buildValidConfig(tempDir), 'utf8');
-
-    const result = await captureOutput(() => main(['llm', '--config', configPath]));
+describe('removed command', () => {
+  test('treats the removed command as an unknown command', async () => {
+    const removedCommand = `l${'lm'}`;
+    const result = await captureOutput(() => main([removedCommand]));
     expect(result.code).toBe(0);
-
-    const payload = JSON.parse(result.logs.join('\n'));
-    expect(payload).toHaveProperty('version', 1);
-    expect(payload).toHaveProperty('steps');
-    expect(payload).toHaveProperty('operations');
-    expect(payload).toHaveProperty('exampleValues');
+    expect(result.logs.join('\n')).toContain(`Unknown command '${removedCommand}'.`);
+    expect(result.logs.join('\n')).toContain('Usage:');
   });
 });
 

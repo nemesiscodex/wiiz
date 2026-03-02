@@ -10,7 +10,6 @@
     "start": "bun src/cli.tsx run",
     "cli": "bun src/cli.tsx",
     "validate": "bun src/cli.tsx validate",
-    "llm": "bun src/cli.tsx llm",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },

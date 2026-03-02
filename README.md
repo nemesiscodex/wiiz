@@ -43,13 +43,13 @@ or with bunx:
 bunx wiiz@latest run
 ```
 
-If you do not have a config yet, `wiiz` exits cleanly and tells you what to do next. You can also install the built-in authoring skill, and ask your favorite LLM to generate a config for you:
+If you do not have a config yet, `wiiz` exits cleanly and tells you what to do next. You can also install the built-in authoring skill to generate a config for you:
 
 ```bash
 npx wiiz skill
 ```
 
-That installs `wiiz-yaml-author` at `.agents/skills/wiiz-yaml-author/SKILL.md` so an LLM/agent can generate `.wiiz/wizard.yaml` and `.wiiz/values.example.json`.
+That installs `wiiz-yaml-author` at `.agents/skills/wiiz-yaml-author/SKILL.md` so you can generate `.wiiz/wizard.yaml` and `.wiiz/values.example.json`.
 
 Validate a config:
 
@@ -122,14 +122,12 @@ Default config path: `.wiiz/wizard.yaml`
 - `wiiz help <primitive>`
 - `wiiz run [--config <path>] [--dry-run] [--values <file.json>]`
 - `wiiz validate [--config <path>]`
-- `wiiz llm [--config <path>]`
 - `wiiz skill [--force]`
 
 ## Documentation
 
 - [Config Reference](docs/config-reference.md)
 - [Examples](docs/examples.md)
-- [LLM Mode](docs/llm-mode.md)
 - [Development](docs/development.md)
 
 ## Contributing

@@ -107,7 +107,6 @@ const SKILL_MD_CONTENT = [
   'If wiiz is available, run:',
   '',
   '- `wiiz validate --config .wiiz/wizard.yaml`',
-  '- `wiiz llm --config .wiiz/wizard.yaml`',
   '',
   'If unavailable, still generate both files and explain unverified checks.',
   ''

@@ -92,7 +92,7 @@ const primitiveReferences = [
         type: 'string',
         required: false,
         defaultDescription: 'No default value.',
-        description: 'Pre-populates the prompt and fills `exampleValues` in `wiiz llm`.'
+        description: 'Pre-populates the prompt so pressing Enter can reuse a known value.'
       },
       {
         name: 'validateRegex',
