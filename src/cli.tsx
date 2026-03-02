@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 import React from 'react';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -691,9 +690,4 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     console.error(`Unexpected error: ${String(error)}`);
     return 1;
   }
-}
-
-if (import.meta.main) {
-  const code = await main();
-  process.exit(code);
 }

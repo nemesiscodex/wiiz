@@ -8,6 +8,7 @@ Run the main checks:
 
 ```bash
 bun test
+bun run build
 bun run typecheck
 ```
 
@@ -16,6 +17,7 @@ Run the CLI directly while developing:
 ```bash
 bun run cli --help
 bun run start
+node dist/index.js help
 ```
 
 ## Project Rules

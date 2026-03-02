@@ -11,7 +11,11 @@ Normally you read the README and follow the Getting Started guide step by step. 
 **Why not streamline that?** wiiz turns the Getting Started section into an interactive wizard. You describe it once in `.wiiz/wizard.yaml`: what env vars to collect, which tools must be installed, what commands to run. Then anyone can clone the repo and quickly get started:
 
 ```bash
-npx wiiz run
+bunx wiiz@latest run
+```
+or:
+```bash
+npx wiiz@latest run
 ```
 
 The wizard can guide them through everything—no flipping back to the README, no copy-paste from Slack. One place for onboarding, one command to run it. For you when you spin up a new machine, for new hires, for open source projects.
@@ -36,15 +40,19 @@ The wizard can guide them through everything—no flipping back to the README, n
 Run the interactive flow:
 
 ```bash
-npx wiiz@latest run
-```
-or with bunx:
-```bash
 bunx wiiz@latest run
+```
+or:
+```bash
+npx wiiz@latest run
 ```
 
 If you do not have a config yet, `wiiz` exits cleanly and tells you what to do next. You can also install the built-in authoring skill to generate a config for you:
 
+```bash
+bunx wiiz skill
+```
+or:
 ```bash
 npx wiiz skill
 ```
@@ -54,11 +62,20 @@ That installs `wiiz-yaml-author` at `.agents/skills/wiiz-yaml-author/SKILL.md` s
 Validate a config:
 
 ```bash
+bunx wiiz validate
+```
+or:
+```bash
 npx wiiz validate
 ```
 
 Browse the primitive reference:
 
+```bash
+bunx wiiz help list
+bunx wiiz help env.write
+```
+or:
 ```bash
 npx wiiz help list
 npx wiiz help env.write

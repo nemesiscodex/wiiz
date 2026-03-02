@@ -33,8 +33,11 @@ describe('installWiizAuthorSkill', () => {
     expect(content).toContain('Generate .wiiz/wizard.yaml');
     expect(content).toContain('Use `match` to branch into one nested path');
     expect(content).toContain('Use `group` to bundle nested steps');
-    expect(content).toContain('Use `wiiz help list` to discover supported primitives');
+    expect(content).toContain('If the `wiiz` binary is installed, use it directly.');
+    expect(content).toContain('Use `wiiz help list` (or `bunx wiiz help list` / `npx wiiz help list`)');
+    expect(content).toContain('`bunx wiiz help list` / `npx wiiz help list`');
     expect(content).toContain('run `wiiz help <primitive>`');
+    expect(content).toContain('equivalent `bunx` / `npx` form');
     expect(content).toContain('With `overwrite: true`, `env.write` updates known keys');
     expect(content).toContain('In non-interactive (`--values`) runs, `command.run` is skipped by default.');
     expect(content).toContain('When a trustworthy default is known, set `input.default`');
@@ -73,5 +76,7 @@ describe('installWiizAuthorSkill', () => {
     const content = await fs.readFile(first.skillFile, 'utf8');
     expect(content).toContain('wiiz YAML Author');
     expect(content).toContain('`wiiz validate --config .wiiz/wizard.yaml`');
+    expect(content).toContain('`bunx wiiz validate --config .wiiz/wizard.yaml`');
+    expect(content).toContain('`npx wiiz validate --config .wiiz/wizard.yaml`');
   });
 });
